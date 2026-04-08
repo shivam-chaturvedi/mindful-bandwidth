@@ -14,6 +14,7 @@ import Game3Stress from "./pages/Game3Stress";
 import Game4Social from "./pages/Game4Social";
 import Results from "./pages/Results";
 import Interventions from "./pages/Interventions";
+import AICoach from "./pages/AICoach";
 import DailyCheckIn from "./pages/DailyCheckIn";
 import Breathing from "./pages/Breathing";
 import Community from "./pages/Community";
