@@ -15,12 +15,11 @@ const Quiz = () => {
   const { setGameResponse } = useBandwidth();
   const navigate = useNavigate();
 
-  const question = shuffled[currentIndex];
-  const options = useMemo(() => getScaleOptions(question), [question]);
-  const progress = Math.round(((Object.keys(answers).length) / shuffled.length) * 100);
-  const answered = answers[question.id] !== undefined;
-
-  const categoryInfo = quizCategories.find(c => c.key === question.category);
+  const question = shuffled.length > 0 ? shuffled[currentIndex] : null;
+  const options = useMemo(() => question ? getScaleOptions(question) : [], [question]);
+  const progress = shuffled.length > 0 ? Math.round(((Object.keys(answers).length) / shuffled.length) * 100) : 0;
+  const answered = question ? answers[question.id] !== undefined : false;
+  const categoryInfo = question ? quizCategories.find(c => c.key === question.category) : null;
 
   // Count answered per category
   const categoryProgress = useMemo(() => {
@@ -34,15 +33,15 @@ const Quiz = () => {
   }, [answers]);
 
   const handleAnswer = useCallback((value: number) => {
+    if (!question) return;
     setAnswers(prev => ({ ...prev, [question.id]: value }));
-    // Auto-advance after short delay
     setTimeout(() => {
       if (currentIndex < shuffled.length - 1) {
         setDirection(1);
         setCurrentIndex(prev => prev + 1);
       }
     }, 300);
-  }, [question.id, currentIndex, shuffled.length]);
+  }, [question, currentIndex, shuffled.length]);
 
   const goBack = () => {
     if (currentIndex > 0) {
@@ -64,6 +63,8 @@ const Quiz = () => {
   };
 
   const allAnswered = Object.keys(answers).length === shuffled.length;
+
+  if (!question) return <PageTransition><div className="min-h-screen flex items-center justify-center text-foreground">Loading...</div></PageTransition>;
 
   return (
     <PageTransition>
