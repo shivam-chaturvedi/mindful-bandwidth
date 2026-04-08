@@ -15,12 +15,14 @@ const Quiz = () => {
   const { setGameResponse } = useBandwidth();
   const navigate = useNavigate();
 
-  const question = shuffled[currentIndex];
-  const options = useMemo(() => getScaleOptions(question), [question]);
-  const progress = Math.round(((Object.keys(answers).length) / shuffled.length) * 100);
-  const answered = answers[question.id] !== undefined;
+  const question = shuffled[currentIndex] ?? shuffled[0];
+  const options = useMemo(() => question ? getScaleOptions(question) : [], [question]);
+  const progress = shuffled.length > 0 ? Math.round(((Object.keys(answers).length) / shuffled.length) * 100) : 0;
+  const answered = question ? answers[question.id] !== undefined : false;
 
-  const categoryInfo = quizCategories.find(c => c.key === question.category);
+  const categoryInfo = question ? quizCategories.find(c => c.key === question.category) : null;
+
+  if (!question) return <PageTransition><div className="min-h-screen flex items-center justify-center text-foreground">Loading questions...</div></PageTransition>;
 
   // Count answered per category
   const categoryProgress = useMemo(() => {
