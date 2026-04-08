@@ -149,10 +149,10 @@ const QuizResults = () => {
               Next, you'll complete 4 interactive decision challenges to see how these patterns play out in real-time scenarios.
             </p>
             <button
-              onClick={() => navigate('/game/1')}
+              onClick={() => navigate('/ai-coach')}
               className="w-full gradient-primary text-primary-foreground py-2.5 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2"
             >
-              Start Decision Challenges
+              Talk to AI Coach
               <ArrowRight className="w-4 h-4" />
             </button>
           </motion.div>
