@@ -33,15 +33,15 @@ const Quiz = () => {
   }, [answers]);
 
   const handleAnswer = useCallback((value: number) => {
+    if (!question) return;
     setAnswers(prev => ({ ...prev, [question.id]: value }));
-    // Auto-advance after short delay
     setTimeout(() => {
       if (currentIndex < shuffled.length - 1) {
         setDirection(1);
         setCurrentIndex(prev => prev + 1);
       }
     }, 300);
-  }, [question.id, currentIndex, shuffled.length]);
+  }, [question, currentIndex, shuffled.length]);
 
   const goBack = () => {
     if (currentIndex > 0) {
@@ -63,6 +63,8 @@ const Quiz = () => {
   };
 
   const allAnswered = Object.keys(answers).length === shuffled.length;
+
+  if (!question) return <PageTransition><div className="min-h-screen flex items-center justify-center text-foreground">Loading...</div></PageTransition>;
 
   return (
     <PageTransition>
