@@ -1,6 +1,4 @@
-import { create } from 'zustand';
-
-// We'll use React context instead of zustand to avoid adding dependencies
+// Game state types
 export interface GameScores {
   planning: number;
   impulseControl: number;
