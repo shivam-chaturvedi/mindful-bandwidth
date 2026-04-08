@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BandwidthProvider } from "@/context/BandwidthContext";
 import Onboarding from "./pages/Onboarding";
 import Intro from "./pages/Intro";
+import Quiz from "./pages/Quiz";
+import QuizResults from "./pages/QuizResults";
 import Game1Priority from "./pages/Game1Priority";
 import Game2Impulse from "./pages/Game2Impulse";
 import Game3Stress from "./pages/Game3Stress";
@@ -29,6 +31,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Onboarding />} />
             <Route path="/intro" element={<Intro />} />
+            <Route path="/quiz" element={<Quiz />} />
+            <Route path="/quiz-results" element={<QuizResults />} />
             <Route path="/game/1" element={<Game1Priority />} />
             <Route path="/game/2" element={<Game2Impulse />} />
             <Route path="/game/3" element={<Game3Stress />} />

@@ -44,7 +44,7 @@ const Intro = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            onClick={() => navigate('/game/1')}
+            onClick={() => navigate('/quiz')}
             className="gradient-primary text-primary-foreground px-8 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-200 inline-flex items-center gap-2"
           >
             <Play className="w-5 h-5" />
