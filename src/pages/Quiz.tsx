@@ -172,33 +172,47 @@ const Quiz = () => {
           </div>
 
           {/* Navigation */}
-          <div className="flex items-center justify-between mt-4 pb-4">
-            <button
-              onClick={goBack}
-              disabled={currentIndex === 0}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-md border border-border bg-card text-foreground font-medium text-sm disabled:opacity-30 hover:border-primary/30 transition-all"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Back
-            </button>
-
-            {allAnswered ? (
+          <div className="flex flex-col gap-2 mt-4 pb-4">
+            <div className="flex items-center justify-between">
               <button
-                onClick={handleFinish}
-                className="gradient-primary text-primary-foreground px-6 py-2 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2"
-              >
-                View Results
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            ) : (
-              <button
-                onClick={goNext}
-                disabled={currentIndex === shuffled.length - 1}
+                onClick={goBack}
+                disabled={currentIndex === 0}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-md border border-border bg-card text-foreground font-medium text-sm disabled:opacity-30 hover:border-primary/30 transition-all"
               >
-                Skip
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back
               </button>
+
+              {allAnswered ? (
+                <button
+                  onClick={handleFinish}
+                  className="gradient-primary text-primary-foreground px-6 py-2 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                >
+                  View Results
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <button
+                  onClick={goNext}
+                  disabled={currentIndex === shuffled.length - 1}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-md border border-border bg-card text-foreground font-medium text-sm disabled:opacity-30 hover:border-primary/30 transition-all"
+                >
+                  Skip
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Early finish button - show after 5 answered questions */}
+            {!allAnswered && Object.keys(answers).length >= 5 && (
+              <motion.button
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={handleFinish}
+                className="w-full py-2 rounded-md text-xs font-medium text-muted-foreground hover:text-primary border border-dashed border-border hover:border-primary/30 transition-all"
+              >
+                I've answered enough — show my results ({Object.keys(answers).length} answered)
+              </motion.button>
             )}
           </div>
         </div>
