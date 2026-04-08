@@ -68,14 +68,14 @@ const DailyCheckIn = () => {
               className="glass-card p-6"
             >
               <p className="text-lg font-extrabold text-foreground mb-2">
-                {answered === 'yes' ? '🎉 Amazing!' : answered === 'no' ? '💪 That's okay!' : '🔔 No worries!'}
+                {answered === 'yes' ? '🎉 Amazing!' : answered === 'no' ? '💪 That\'s okay!' : '🔔 No worries!'}
               </p>
               <p className="text-sm text-muted-foreground mb-4">
                 {answered === 'yes'
                   ? 'Every small step compounds. Keep going!'
                   : answered === 'no'
-                    ? 'Tomorrow is a fresh start. One day doesn't define your journey.'
-                    : 'We'll remind you. The fact that you checked in matters!'}
+                    ? 'Tomorrow is a fresh start. One day doesn\'t define your journey.'
+                    : 'We\'ll remind you. The fact that you checked in matters!'}
               </p>
               <div className="flex gap-3 justify-center">
                 <button onClick={() => navigate('/breathing')} className="px-5 py-2.5 rounded-xl border-2 border-border bg-card text-foreground font-semibold text-sm transition-all hover:border-primary/30">
