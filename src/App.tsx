@@ -3,23 +3,45 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index.tsx";
-import NotFound from "./pages/NotFound.tsx";
+import { BandwidthProvider } from "@/context/BandwidthContext";
+import Onboarding from "./pages/Onboarding";
+import Intro from "./pages/Intro";
+import Game1Priority from "./pages/Game1Priority";
+import Game2Impulse from "./pages/Game2Impulse";
+import Game3Stress from "./pages/Game3Stress";
+import Game4Social from "./pages/Game4Social";
+import Results from "./pages/Results";
+import Interventions from "./pages/Interventions";
+import DailyCheckIn from "./pages/DailyCheckIn";
+import Breathing from "./pages/Breathing";
+import Community from "./pages/Community";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <BandwidthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Onboarding />} />
+            <Route path="/intro" element={<Intro />} />
+            <Route path="/game/1" element={<Game1Priority />} />
+            <Route path="/game/2" element={<Game2Impulse />} />
+            <Route path="/game/3" element={<Game3Stress />} />
+            <Route path="/game/4" element={<Game4Social />} />
+            <Route path="/results" element={<Results />} />
+            <Route path="/interventions" element={<Interventions />} />
+            <Route path="/checkin" element={<DailyCheckIn />} />
+            <Route path="/breathing" element={<Breathing />} />
+            <Route path="/community" element={<Community />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </BandwidthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
