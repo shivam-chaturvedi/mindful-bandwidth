@@ -5,12 +5,13 @@ import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import ProgressBar from '@/components/ProgressBar';
 import FloatingShapes from '@/components/FloatingShapes';
+import { Check, Clock, Ban, Handshake } from 'lucide-react';
 
 const options = [
-  { id: 'yes', label: 'Say yes immediately', emoji: '✅', score: 20, desc: 'Help them right away' },
-  { id: 'delay', label: 'Say "let me check"', emoji: '⏳', score: 80, desc: 'Buy time to think' },
-  { id: 'no', label: 'Say no politely', emoji: '🚫', score: 60, desc: 'Protect your time' },
-  { id: 'help', label: 'Ask for help instead', emoji: '🤝', score: 100, desc: 'Seek support first' },
+  { id: 'yes', label: 'Say yes immediately', icon: Check, score: 20, desc: 'Help them right away' },
+  { id: 'delay', label: 'Say "let me check"', icon: Clock, score: 80, desc: 'Buy time to think' },
+  { id: 'no', label: 'Say no politely', icon: Ban, score: 60, desc: 'Protect your time' },
+  { id: 'help', label: 'Ask for help instead', icon: Handshake, score: 100, desc: 'Seek support first' },
 ];
 
 const Game4Social = () => {
@@ -47,8 +48,7 @@ const Game4Social = () => {
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-6"
           >
-            <span className="text-4xl mb-3 block">🧑‍🤝‍🧑</span>
-            <h2 className="text-xl font-extrabold text-foreground mb-2">
+            <h2 className="text-2xl font-bold text-foreground mb-2">
               Social Decision
             </h2>
             <p className="text-muted-foreground text-sm">
@@ -56,8 +56,10 @@ const Game4Social = () => {
             </p>
           </motion.div>
 
-          <div className="space-y-3">
-            {options.map((opt, i) => (
+          <div className="space-y-2">
+            {options.map((opt, i) => {
+              const OptIcon = opt.icon;
+              return (
               <motion.button
                 key={opt.id}
                 initial={{ opacity: 0, x: -20 }}
@@ -66,22 +68,25 @@ const Game4Social = () => {
                 onClick={() => handleSelect(opt.id)}
                 disabled={!!selected}
                 className={`
-                  w-full p-4 rounded-xl border-2 text-left flex items-center gap-4 transition-all duration-200
+                  w-full p-4 rounded-md border text-left flex items-center gap-3 transition-all duration-150
                   ${selected === opt.id
-                    ? 'border-primary bg-primary/5 shadow-md scale-[1.01]'
+                    ? 'border-primary bg-primary/5 shadow-sm'
                     : selected
                       ? 'border-border bg-card opacity-50'
-                      : 'border-border bg-card hover:border-primary/30 hover:shadow-sm'
+                      : 'border-border bg-card hover:border-primary/40'
                   }
                 `}
               >
-                <span className="text-2xl">{opt.emoji}</span>
+                <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <OptIcon className="w-4 h-4 text-primary" />
+                </div>
                 <div>
-                  <p className="font-bold text-foreground text-sm">{opt.label}</p>
+                  <p className="font-semibold text-foreground text-sm">{opt.label}</p>
                   <p className="text-xs text-muted-foreground">{opt.desc}</p>
                 </div>
               </motion.button>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
