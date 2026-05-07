@@ -5,14 +5,14 @@ import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import ProgressBar from '@/components/ProgressBar';
 import FloatingShapes from '@/components/FloatingShapes';
-import { GripVertical, ArrowRight } from 'lucide-react';
+import { GripVertical, ArrowRight, FileText, Users as UsersIcon, Sparkles, BookOpen, Coffee } from 'lucide-react';
 
 const tasks = [
-  { id: 'assignment', label: 'Assignment due tomorrow', emoji: '📝', urgency: 'high' },
-  { id: 'family', label: 'Family responsibility', emoji: '👨‍👩‍👧', urgency: 'medium' },
-  { id: 'social', label: 'Social plan with friends', emoji: '🎉', urgency: 'low' },
-  { id: 'exam', label: 'Exam prep (next week)', emoji: '📚', urgency: 'medium' },
-  { id: 'personal', label: 'Personal time / rest', emoji: '🧘', urgency: 'low' },
+  { id: 'assignment', label: 'Assignment due tomorrow', icon: FileText, urgency: 'high' },
+  { id: 'family', label: 'Family responsibility', icon: UsersIcon, urgency: 'medium' },
+  { id: 'social', label: 'Social plan with friends', icon: Sparkles, urgency: 'low' },
+  { id: 'exam', label: 'Exam prep (next week)', icon: BookOpen, urgency: 'medium' },
+  { id: 'personal', label: 'Personal time / rest', icon: Coffee, urgency: 'low' },
 ];
 
 const Game1Priority = () => {

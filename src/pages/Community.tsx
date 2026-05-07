@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
@@ -21,7 +20,6 @@ const posts = [
 
 const Community = () => {
   const [joined, setJoined] = useState(false);
-  const navigate = useNavigate();
 
   return (
     <PageTransition>

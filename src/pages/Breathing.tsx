@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageTransition from '@/components/PageTransition';
+import { Wind, CheckCircle2 } from 'lucide-react';
 
 const PHASES = ['Breathe in', 'Hold', 'Breathe out', 'Hold'] as const;
 const DURATIONS = [4, 4, 4, 4]; // seconds per phase
@@ -42,7 +43,7 @@ const Breathing = () => {
 
   return (
     <PageTransition>
-      <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
+      <div className="min-h-[80vh] flex flex-col items-center justify-center relative overflow-hidden py-12"
         style={{ background: 'linear-gradient(180deg, hsl(200 85% 92%) 0%, hsl(210 33% 98%) 100%)' }}
       >
         {/* Floating clouds */}
@@ -65,28 +66,32 @@ const Breathing = () => {
         <div className="relative z-10 text-center px-4">
           {!started && !done ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <span className="text-6xl mb-6 block">🌤️</span>
-              <h1 className="text-2xl font-extrabold text-foreground mb-3">Reset & Breathe</h1>
+              <div className="w-14 h-14 rounded-md bg-primary/10 flex items-center justify-center mx-auto mb-5">
+                <Wind className="w-7 h-7 text-primary" />
+              </div>
+              <h1 className="text-2xl font-bold text-foreground mb-3">Reset & Breathe</h1>
               <p className="text-muted-foreground text-sm mb-8 max-w-xs mx-auto">
                 Take a moment to calm your mind. {TOTAL_BREATHS} deep breaths.
               </p>
               <button
                 onClick={() => setStarted(true)}
-                className="gradient-calm text-calm-foreground px-8 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+                className="gradient-primary text-primary-foreground px-6 py-2.5 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all"
               >
                 Begin
               </button>
             </motion.div>
           ) : done ? (
             <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-              <span className="text-6xl mb-6 block">☀️</span>
-              <h2 className="text-2xl font-extrabold text-foreground mb-3">Well done</h2>
+              <div className="w-14 h-14 rounded-md bg-success/10 flex items-center justify-center mx-auto mb-5">
+                <CheckCircle2 className="w-7 h-7 text-success" />
+              </div>
+              <h2 className="text-2xl font-bold text-foreground mb-3">Well done</h2>
               <p className="text-muted-foreground text-sm mb-8">You've completed your breathing session.</p>
-              <div className="flex gap-3 justify-center">
-                <button onClick={() => navigate('/results')} className="px-6 py-3 rounded-xl border-2 border-border bg-card text-foreground font-semibold transition-all">
-                  Back to Results
+              <div className="flex gap-2 justify-center">
+                <button onClick={() => navigate('/home')} className="px-5 py-2.5 rounded-md border border-border bg-card text-foreground font-medium text-sm transition-all">
+                  Dashboard
                 </button>
-                <button onClick={() => navigate('/community')} className="gradient-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-md transition-all">
+                <button onClick={() => navigate('/community')} className="gradient-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold text-sm shadow-sm transition-all">
                   Community
                 </button>
               </div>
@@ -107,7 +112,7 @@ const Breathing = () => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="text-lg font-extrabold text-foreground"
+                      className="text-lg font-bold text-foreground"
                     >
                       {PHASES[phaseIdx]}
                     </motion.p>
