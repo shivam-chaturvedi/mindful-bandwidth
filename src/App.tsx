@@ -19,6 +19,8 @@ import DailyCheckIn from "./pages/DailyCheckIn";
 import Breathing from "./pages/Breathing";
 import Community from "./pages/Community";
 import NotFound from "./pages/NotFound";
+import AppShell from "./components/AppShell";
+import Home from "./pages/Home";
 
 const queryClient = new QueryClient();
 
@@ -34,16 +36,19 @@ const App = () => (
             <Route path="/intro" element={<Intro />} />
             <Route path="/quiz" element={<Quiz />} />
             <Route path="/quiz-results" element={<QuizResults />} />
-            <Route path="/ai-coach" element={<AICoach />} />
-            <Route path="/game/1" element={<Game1Priority />} />
-            <Route path="/game/2" element={<Game2Impulse />} />
-            <Route path="/game/3" element={<Game3Stress />} />
-            <Route path="/game/4" element={<Game4Social />} />
-            <Route path="/results" element={<Results />} />
-            <Route path="/interventions" element={<Interventions />} />
-            <Route path="/checkin" element={<DailyCheckIn />} />
-            <Route path="/breathing" element={<Breathing />} />
-            <Route path="/community" element={<Community />} />
+            <Route element={<AppShell />}>
+              <Route path="/home" element={<Home />} />
+              <Route path="/ai-coach" element={<AICoach />} />
+              <Route path="/game/1" element={<Game1Priority />} />
+              <Route path="/game/2" element={<Game2Impulse />} />
+              <Route path="/game/3" element={<Game3Stress />} />
+              <Route path="/game/4" element={<Game4Social />} />
+              <Route path="/results" element={<Results />} />
+              <Route path="/interventions" element={<Interventions />} />
+              <Route path="/checkin" element={<DailyCheckIn />} />
+              <Route path="/breathing" element={<Breathing />} />
+              <Route path="/community" element={<Community />} />
+            </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
