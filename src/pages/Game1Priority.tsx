@@ -5,14 +5,14 @@ import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import ProgressBar from '@/components/ProgressBar';
 import FloatingShapes from '@/components/FloatingShapes';
-import { GripVertical, ArrowRight } from 'lucide-react';
+import { GripVertical, ArrowRight, FileText, Users as UsersIcon, Sparkles, BookOpen, Coffee } from 'lucide-react';
 
 const tasks = [
-  { id: 'assignment', label: 'Assignment due tomorrow', emoji: '📝', urgency: 'high' },
-  { id: 'family', label: 'Family responsibility', emoji: '👨‍👩‍👧', urgency: 'medium' },
-  { id: 'social', label: 'Social plan with friends', emoji: '🎉', urgency: 'low' },
-  { id: 'exam', label: 'Exam prep (next week)', emoji: '📚', urgency: 'medium' },
-  { id: 'personal', label: 'Personal time / rest', emoji: '🧘', urgency: 'low' },
+  { id: 'assignment', label: 'Assignment due tomorrow', icon: FileText, urgency: 'high' },
+  { id: 'family', label: 'Family responsibility', icon: UsersIcon, urgency: 'medium' },
+  { id: 'social', label: 'Social plan with friends', icon: Sparkles, urgency: 'low' },
+  { id: 'exam', label: 'Exam prep (next week)', icon: BookOpen, urgency: 'medium' },
+  { id: 'personal', label: 'Personal time / rest', icon: Coffee, urgency: 'low' },
 ];
 
 const Game1Priority = () => {
@@ -62,6 +62,7 @@ const Game1Priority = () => {
           <div className="space-y-2 mb-8">
             {order.map((id, idx) => {
               const task = tasks.find(t => t.id === id)!;
+              const TaskIcon = task.icon;
               return (
                 <motion.div
                   key={id}
@@ -86,7 +87,7 @@ const Game1Priority = () => {
                     <span className="text-xs font-bold w-5 text-center">{idx + 1}</span>
                     <GripVertical className="w-4 h-4" />
                   </div>
-                  <span className="text-xl">{task.emoji}</span>
+                  <TaskIcon className="w-5 h-5 text-primary" />
                   <span className="text-sm font-semibold text-foreground flex-1">{task.label}</span>
                 </motion.div>
               );

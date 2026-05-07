@@ -69,8 +69,7 @@ const Game2Impulse = () => {
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-6"
           >
-            <span className="text-4xl mb-3 block">💰</span>
-            <h2 className="text-xl font-extrabold text-foreground mb-2">
+            <h2 className="text-2xl font-bold text-foreground mb-2">
               Instant vs Future
             </h2>
             <p className="text-muted-foreground text-sm">

@@ -74,14 +74,16 @@ const Interventions = () => {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-8"
+            className="mb-8"
           >
-            <span className="text-4xl mb-3 block">🎯</span>
-            <h1 className="text-2xl font-extrabold text-foreground mb-2">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wider rounded-sm mb-3">
+              <Target className="w-3 h-3" /> Action Plan
+            </div>
+            <h1 className="text-2xl font-bold text-foreground mb-1">
               Your Recommended Action
             </h1>
             <p className="text-muted-foreground text-sm">
-              Based on your results, we recommend focusing on one thing
+              Based on your results, focus on one thing.
             </p>
           </motion.div>
 
@@ -91,10 +93,10 @@ const Interventions = () => {
             transition={{ delay: 0.2 }}
             className="glass-card-elevated p-6 mb-6"
           >
-            <div className={`w-12 h-12 rounded-xl ${intervention.color} flex items-center justify-center mb-4`}>
-              <Icon className="w-6 h-6 text-foreground/70" />
+            <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center mb-4">
+              <Icon className="w-5 h-5 text-primary" />
             </div>
-            <h2 className="text-lg font-extrabold text-foreground mb-2">{intervention.title}</h2>
+            <h2 className="text-lg font-bold text-foreground mb-2">{intervention.title}</h2>
             <p className="text-sm text-muted-foreground mb-6">{intervention.desc}</p>
 
             <div className="space-y-3">
@@ -106,10 +108,10 @@ const Interventions = () => {
                   transition={{ delay: 0.3 + i * 0.1 }}
                   className="flex items-start gap-3"
                 >
-                  <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-xs font-bold text-primary">{i + 1}</span>
+                  <div className="w-6 h-6 rounded-sm bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-[11px] font-bold text-primary">{i + 1}</span>
                   </div>
-                  <p className="text-sm text-foreground font-medium">{step}</p>
+                  <p className="text-sm text-foreground">{step}</p>
                 </motion.div>
               ))}
             </div>
@@ -122,19 +124,19 @@ const Interventions = () => {
               transition={{ delay: 0.6 }}
               className="glass-card p-6 text-center"
             >
-              <p className="text-sm font-semibold text-foreground mb-4">
+              <p className="text-sm font-medium text-foreground mb-4">
                 "I will try this for the next 5 days"
               </p>
-              <div className="flex gap-3 justify-center">
+              <div className="flex gap-2 justify-center">
                 <button
                   onClick={handleCommit}
-                  className="gradient-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
+                  className="gradient-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all"
                 >
-                  Yes, I'm in ✨
+                  Yes, I'm in
                 </button>
                 <button
                   onClick={() => navigate('/community')}
-                  className="px-6 py-3 rounded-xl border-2 border-border bg-card text-foreground font-semibold hover:border-primary/30 transition-all"
+                  className="px-5 py-2.5 rounded-md border border-border bg-card text-foreground font-medium text-sm hover:border-primary/30 transition-all"
                 >
                   Maybe later
                 </button>
@@ -146,21 +148,21 @@ const Interventions = () => {
               animate={{ scale: 1, opacity: 1 }}
               className="glass-card-elevated p-6 text-center"
             >
-              <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-4">
-                <Check className="w-8 h-8 text-success" />
+              <div className="w-12 h-12 rounded-md bg-success/10 flex items-center justify-center mx-auto mb-4">
+                <Check className="w-6 h-6 text-success" />
               </div>
-              <h3 className="text-lg font-extrabold text-foreground mb-2">You're committed!</h3>
+              <h3 className="text-lg font-bold text-foreground mb-2">You're committed</h3>
               <p className="text-sm text-muted-foreground mb-4">We'll check in with you daily.</p>
-              <div className="flex gap-3 justify-center">
+              <div className="flex gap-2 justify-center">
                 <button
                   onClick={() => navigate('/checkin')}
-                  className="gradient-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                  className="gradient-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold text-sm shadow-sm transition-all"
                 >
                   Start Day 1
                 </button>
                 <button
                   onClick={() => navigate('/community')}
-                  className="px-6 py-3 rounded-xl border-2 border-border bg-card text-foreground font-semibold transition-all"
+                  className="px-5 py-2.5 rounded-md border border-border bg-card text-foreground font-medium text-sm transition-all"
                 >
                   Join Community
                 </button>
