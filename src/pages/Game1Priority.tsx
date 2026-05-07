@@ -62,6 +62,7 @@ const Game1Priority = () => {
           <div className="space-y-2 mb-8">
             {order.map((id, idx) => {
               const task = tasks.find(t => t.id === id)!;
+              const TaskIcon = task.icon;
               return (
                 <motion.div
                   key={id}
@@ -86,7 +87,7 @@ const Game1Priority = () => {
                     <span className="text-xs font-bold w-5 text-center">{idx + 1}</span>
                     <GripVertical className="w-4 h-4" />
                   </div>
-                  <span className="text-xl">{task.emoji}</span>
+                  <TaskIcon className="w-5 h-5 text-primary" />
                   <span className="text-sm font-semibold text-foreground flex-1">{task.label}</span>
                 </motion.div>
               );
