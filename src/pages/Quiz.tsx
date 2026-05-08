@@ -1,11 +1,13 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
-import { allQuestions, shuffleQuestions, getScaleOptions, quizCategories } from '@/lib/quizData';
+import { allQuestions, shuffleQuestions, getScaleOptions, quizCategories, calculateQuizScores } from '@/lib/quizData';
 import { ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
+
+const MIN_REQUIRED = 15;
 
 const Quiz = () => {
   const [shuffled] = useState(() => shuffleQuestions(allQuestions));
@@ -14,6 +16,12 @@ const Quiz = () => {
   const [direction, setDirection] = useState(1);
   const { setGameResponse } = useBandwidth();
   const navigate = useNavigate();
+
+  // Overwrite previous quiz results on a fresh quiz start
+  useEffect(() => {
+    localStorage.removeItem('quizAnswers');
+    localStorage.removeItem('quizScores');
+  }, []);
 
   const question = shuffled.length > 0 ? shuffled[currentIndex] : null;
   const options = useMemo(() => question ? getScaleOptions(question) : [], [question]);
@@ -58,10 +66,16 @@ const Quiz = () => {
 
   const handleFinish = () => {
     setGameResponse('quizAnswers', answers);
+    try {
+      localStorage.setItem('quizAnswers', JSON.stringify(answers));
+      localStorage.setItem('quizScores', JSON.stringify(calculateQuizScores(answers)));
+    } catch {}
     navigate('/quiz-results');
   };
 
   const allAnswered = Object.keys(answers).length === shuffled.length;
+  const answeredCount = Object.keys(answers).length;
+  const reachedMin = answeredCount >= MIN_REQUIRED;
 
   if (!question) return <PageTransition><div className="min-h-screen flex items-center justify-center text-foreground">Loading...</div></PageTransition>;
 
@@ -194,7 +208,8 @@ const Quiz = () => {
               ) : (
                 <button
                   onClick={goNext}
-                  disabled={currentIndex === shuffled.length - 1}
+                  disabled={currentIndex === shuffled.length - 1 || !reachedMin}
+                  title={!reachedMin ? `Answer at least ${MIN_REQUIRED} to skip` : ''}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-md border border-border bg-card text-foreground font-medium text-sm disabled:opacity-30 hover:border-primary/30 transition-all"
                 >
                   Skip
@@ -203,16 +218,22 @@ const Quiz = () => {
               )}
             </div>
 
-            {/* Early finish button - show after 5 answered questions */}
-            {!allAnswered && Object.keys(answers).length >= 5 && (
+            {/* Early finish button - require minimum 15 answered */}
+            {!allAnswered && reachedMin && (
               <motion.button
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={handleFinish}
                 className="w-full py-2 rounded-md text-xs font-medium text-muted-foreground hover:text-primary border border-dashed border-border hover:border-primary/30 transition-all"
               >
-                I've answered enough — show my results ({Object.keys(answers).length} answered)
+                I've answered enough — show my results ({answeredCount} answered)
               </motion.button>
+            )}
+
+            {!reachedMin && (
+              <p className="text-[11px] text-center text-muted-foreground">
+                Answer at least {MIN_REQUIRED} questions to unlock results ({answeredCount}/{MIN_REQUIRED})
+              </p>
             )}
           </div>
         </div>
