@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import {
-  MessageSquare, Wind, ClipboardList, Target, Dumbbell, Users, BarChart3, TrendingUp, ArrowRight,
+  MessageSquare, Wind, ClipboardList, Target, Dumbbell, BarChart3, TrendingUp, ArrowRight,
 } from 'lucide-react';
 import { calculateQuizScores } from '@/lib/quizData';
 
@@ -14,7 +14,6 @@ const features = [
   { to: '/game/1', icon: Dumbbell, title: 'Practice Exercises', desc: 'Decision challenges' },
   { to: '/checkin', icon: ClipboardList, title: 'Daily Check-in', desc: 'Track your bandwidth' },
   { to: '/breathing', icon: Wind, title: 'Breathing Tool', desc: '60-second reset' },
-  { to: '/community', icon: Users, title: 'Community', desc: 'Peer-supported challenge' },
 ];
 
 const Home = () => {
