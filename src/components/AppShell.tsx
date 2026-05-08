@@ -5,11 +5,10 @@ const navItems = [
   { to: '/home', label: 'Home', icon: Home },
   { to: '/results', label: 'Insights', icon: BarChart3 },
   { to: '/ai-coach', label: 'Coach', icon: MessageSquare },
-  { to: '/interventions', label: 'Action Plan', icon: Target },
-  { to: '/checkin', label: 'Check-in', icon: ClipboardList },
+  { to: '/interventions', label: 'Plan', icon: Target },
+  { to: '/checkin', label: 'Check', icon: ClipboardList },
   { to: '/breathing', label: 'Breathe', icon: Wind },
   { to: '/game/1', label: 'Practice', icon: Dumbbell },
-  { to: '/community', label: 'Community', icon: Users },
 ];
 
 const AppShell = () => {
@@ -32,7 +31,7 @@ const AppShell = () => {
             </div>
             <span className="font-display font-bold text-sm tracking-tight text-foreground hidden sm:inline">Bandwidth</span>
           </NavLink>
-          <nav className="hidden md:flex items-center gap-1 ml-2 overflow-x-auto">
+          <nav className="hidden md:flex items-center gap-1 ml-2 overflow-x-auto whitespace-nowrap">
             {navItems.map(item => {
               const Icon = item.icon;
               return (
@@ -40,7 +39,7 @@ const AppShell = () => {
                   key={item.to}
                   to={item.to}
                   className={({ isActive }) =>
-                    `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
                       isActive
                         ? 'bg-primary/10 text-primary'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -71,7 +70,7 @@ const AppShell = () => {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors ${
+                  `flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium whitespace-nowrap transition-colors ${
                     isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                   }`
                 }
