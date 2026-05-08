@@ -6,7 +6,7 @@ import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
 import { calculateQuizScores, quizCategories } from '@/lib/quizData';
 import { getRecommendedSolutions, Solution } from '@/lib/solutions';
-import { ArrowRight, Bot, User, Send, Sparkles } from 'lucide-react';
+import { ArrowRight, Bot, User, Send, Sparkles, KeyRound } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -16,7 +16,34 @@ interface Message {
   solutionCards?: Solution[];
 }
 
-// Generate follow-up questions based on scores
+const GEMINI_KEY_STORAGE = 'geminiApiKey';
+const GEMINI_MODEL = 'gemini-2.0-flash';
+
+async function callGemini(apiKey: string, prompt: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.8, responseMimeType: 'application/json' },
+    }),
+  });
+  if (!res.ok || res.status >= 400) throw new Error(`Gemini error ${res.status}`);
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return text;
+}
+
+function tryParseJson<T = any>(text: string): T | null {
+  try { return JSON.parse(text) as T; } catch {}
+  // try to extract {...}
+  const match = text.match(/\{[\s\S]*\}/);
+  if (match) { try { return JSON.parse(match[0]) as T; } catch {} }
+  return null;
+}
+
+// Hardcoded fallback conversation
 function generateConversation(scores: Record<string, number>): Message[] {
   const sorted = Object.entries(scores).sort(([, a], [, b]) => a - b);
   const weakest = sorted[0];
@@ -143,77 +170,178 @@ const AICoach = () => {
   const [phase, setPhase] = useState(0);
   const [typing, setTyping] = useState(false);
   const [userInput, setUserInput] = useState('');
+  const [apiKey, setApiKey] = useState<string>(() => {
+    try { return localStorage.getItem(GEMINI_KEY_STORAGE) || ''; } catch { return ''; }
+  });
+  const [showKeyForm, setShowKeyForm] = useState(false);
+  const [keyInput, setKeyInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const quizScores = (() => {
-    const answers = gameResponses.quizAnswers || {};
+    let answers = gameResponses.quizAnswers || {};
+    if (!answers || Object.keys(answers).length === 0) {
+      try {
+        const stored = localStorage.getItem('quizAnswers');
+        if (stored) answers = JSON.parse(stored);
+      } catch {}
+    }
     return calculateQuizScores(answers);
   })();
 
   const sorted = Object.entries(quizScores).sort(([, a], [, b]) => a - b);
   const weakestDomain = sorted[0]?.[0] || 'stress';
+  const domainLabels: Record<string, string> = {
+    stress: 'stress management',
+    selfControl: 'self-control & impulse regulation',
+    timeManagement: 'time management & planning',
+    financialThreat: 'financial pressure',
+    socialConnectedness: 'social connection',
+  };
 
-  // Initialize conversation
+  // Build a context string from scores
+  const scoresContext = JSON.stringify(quizScores);
+
+  // Ask Gemini for a follow-up question with options
+  async function aiGenerateFirstQuestion(): Promise<Message[] | null> {
+    if (!apiKey) return null;
+    const weak = sorted[0];
+    const prompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework. The user just completed an assessment with these scores (0-100, higher = better): ${scoresContext}. Their weakest area is "${domainLabels[weak[0]]}" at ${weak[1]}/100.
+
+Reply ONLY in JSON with this exact shape:
+{"intro":"<2-3 sentence empathetic intro that names their weakest domain and score, uses **bold** for emphasis>","question":"<one specific follow-up question to better understand them>","options":["opt1","opt2","opt3","opt4"]}
+
+Make options first-person statements (e.g., "I feel...") relevant to ${domainLabels[weak[0]]}. No markdown fences. Pure JSON.`;
+    try {
+      const text = await callGemini(apiKey, prompt);
+      const json = tryParseJson<{ intro: string; question: string; options: string[] }>(text);
+      if (!json?.intro || !json?.question || !Array.isArray(json?.options)) return null;
+      return [
+        { id: 'intro', role: 'ai', text: json.intro },
+        { id: 'q1', role: 'ai', text: json.question, options: json.options.slice(0, 4) },
+      ];
+    } catch (e) {
+      console.warn('Gemini failed, falling back', e);
+      return null;
+    }
+  }
+
+  async function aiGenerateFollowUp(history: Message[]): Promise<Message | null> {
+    if (!apiKey) return null;
+    const transcript = history.map(m => `${m.role === 'ai' ? 'Coach' : 'User'}: ${m.text}`).join('\n');
+    const prompt = `Continue this CSI-Y coaching conversation. Scores: ${scoresContext}.
+Transcript so far:
+${transcript}
+
+Generate the next follow-up. Reply ONLY in JSON:
+{"question":"<single thoughtful follow-up question, may use **bold**>","options":["opt1","opt2","opt3","opt4"] OR null}
+
+If the question should be open-ended, set options to null. Pure JSON, no markdown.`;
+    try {
+      const text = await callGemini(apiKey, prompt);
+      const json = tryParseJson<{ question: string; options: string[] | null }>(text);
+      if (!json?.question) return null;
+      return {
+        id: `ai-${Date.now()}`,
+        role: 'ai',
+        text: json.question,
+        options: Array.isArray(json.options) ? json.options.slice(0, 4) : undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async function aiGenerateClosing(history: Message[]): Promise<Message | null> {
+    if (!apiKey) return null;
+    const solutions = getRecommendedSolutions(quizScores);
+    const transcript = history.map(m => `${m.role === 'ai' ? 'Coach' : 'User'}: ${m.text}`).join('\n');
+    const prompt = `Wrap up this CSI-Y coaching session. Scores: ${scoresContext}.
+Transcript:
+${transcript}
+
+Reply ONLY in JSON:
+{"summary":"<2-4 sentence empathetic synthesis referencing what the user shared. Use **bold** sparingly.>"}
+No markdown fences.`;
+    try {
+      const text = await callGemini(apiKey, prompt);
+      const json = tryParseJson<{ summary: string }>(text);
+      const summary = json?.summary || `Based on our conversation, here are evidence-based interventions tailored to you.`;
+      return { id: 'solutions', role: 'ai', text: summary, solutionCards: solutions };
+    } catch {
+      return null;
+    }
+  }
+
+  // Initialize conversation (Gemini-first, fallback to hardcoded)
   useEffect(() => {
-    const initial = generateConversation(quizScores);
-    setTyping(true);
-    setTimeout(() => {
+    let cancelled = false;
+    (async () => {
+      setTyping(true);
+      let initial = await aiGenerateFirstQuestion();
+      if (!initial) initial = generateConversation(quizScores);
+      if (cancelled) return;
       setMessages([initial[0]]);
+      await new Promise(r => setTimeout(r, 700));
+      if (cancelled) return;
+      setMessages([initial[0], initial[1]]);
       setTyping(false);
-      setTimeout(() => {
-        setTyping(true);
-        setTimeout(() => {
-          setMessages([initial[0], initial[1]]);
-          setTyping(false);
-          setPhase(1);
-        }, 1200);
-      }, 800);
-    }, 1000);
-  }, []);
+      setPhase(1);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, typing]);
 
+  const advance = async (newMessages: Message[]) => {
+    setTyping(true);
+    if (phase === 1) {
+      const next = (await aiGenerateFollowUp(newMessages)) || getFollowUp2(weakestDomain);
+      setMessages(prev => [...prev, next]);
+      setTyping(false);
+      setPhase(2);
+    } else if (phase === 2) {
+      const next = (await aiGenerateFollowUp(newMessages)) || getFollowUp3(weakestDomain, quizScores);
+      setMessages(prev => [...prev, next]);
+      setTyping(false);
+      setPhase(3);
+    } else if (phase === 3) {
+      const next = (await aiGenerateClosing(newMessages)) || getSolutionMessage(quizScores);
+      setMessages(prev => [...prev, next]);
+      setTyping(false);
+      setPhase(4);
+    }
+  };
+
   const handleOptionClick = (option: string) => {
     const userMsg: Message = { id: `user-${Date.now()}`, role: 'user', text: option };
-    setMessages(prev => [...prev, userMsg]);
-
-    if (phase === 1) {
-      setTyping(true);
-      setTimeout(() => {
-        setMessages(prev => [...prev, getFollowUp2(weakestDomain)]);
-        setTyping(false);
-        setPhase(2);
-      }, 1500);
-    } else if (phase === 3) {
-      setTyping(true);
-      setTimeout(() => {
-        setMessages(prev => [...prev, getSolutionMessage(quizScores)]);
-        setTyping(false);
-        setPhase(4);
-      }, 2000);
-    }
+    const next = [...messages, userMsg];
+    setMessages(next);
+    advance(next);
   };
 
   const handleTextSubmit = () => {
     if (!userInput.trim()) return;
     const userMsg: Message = { id: `user-${Date.now()}`, role: 'user', text: userInput };
-    setMessages(prev => [...prev, userMsg]);
+    const next = [...messages, userMsg];
+    setMessages(next);
     setUserInput('');
+    advance(next);
+  };
 
-    if (phase === 2) {
-      setTyping(true);
-      setTimeout(() => {
-        setMessages(prev => [...prev, getFollowUp3(weakestDomain, quizScores)]);
-        setTyping(false);
-        setPhase(3);
-      }, 1800);
-    }
+  const saveKey = () => {
+    if (!keyInput.trim()) return;
+    try { localStorage.setItem(GEMINI_KEY_STORAGE, keyInput.trim()); } catch {}
+    setApiKey(keyInput.trim());
+    setShowKeyForm(false);
+    setMessages([]);
+    setPhase(0);
   };
 
   const currentMessage = messages[messages.length - 1];
-  const showTextInput = phase === 2 && currentMessage?.role === 'ai' && !currentMessage?.options;
+  const showTextInput = (phase === 2 || phase === 3) && currentMessage?.role === 'ai' && !currentMessage?.options;
   const showOptions = currentMessage?.role === 'ai' && currentMessage?.options;
 
   return (
@@ -227,11 +355,35 @@ const AICoach = () => {
             <div className="w-8 h-8 rounded-sm gradient-primary flex items-center justify-center">
               <Bot className="w-4 h-4 text-primary-foreground" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-semibold text-foreground">Bandwidth AI Coach</p>
-              <p className="text-[10px] text-muted-foreground">Analyzing your cognitive profile</p>
+              <p className="text-[10px] text-muted-foreground">{apiKey ? 'Powered by Gemini' : 'Using offline mode (add Gemini key for live AI)'}</p>
             </div>
+            <button
+              onClick={() => { setKeyInput(apiKey); setShowKeyForm(v => !v); }}
+              className="flex items-center gap-1 px-2 py-1 rounded-md border border-border text-[10px] font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+            >
+              <KeyRound className="w-3 h-3" />
+              {apiKey ? 'Change key' : 'Add Gemini key'}
+            </button>
           </div>
+          {showKeyForm && (
+            <div className="max-w-lg mx-auto mt-3 flex gap-2">
+              <input
+                value={keyInput}
+                onChange={e => setKeyInput(e.target.value)}
+                placeholder="Paste your Google Gemini API key"
+                className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-foreground text-xs focus:border-primary focus:outline-none"
+                type="password"
+              />
+              <button
+                onClick={saveKey}
+                className="px-3 py-2 rounded-md gradient-primary text-primary-foreground text-xs font-semibold"
+              >
+                Save
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Chat area */}
