@@ -6,7 +6,7 @@ import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
 import { calculateQuizScores, quizCategories } from '@/lib/quizData';
 import { getRecommendedSolutions, Solution } from '@/lib/solutions';
-import { ArrowRight, Bot, User, Send, Sparkles, KeyRound } from 'lucide-react';
+import { ArrowRight, Bot, User, Send, Sparkles } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -16,8 +16,9 @@ interface Message {
   solutionCards?: Solution[];
 }
 
-const GEMINI_KEY_STORAGE = 'geminiApiKey';
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+const _env = import.meta.env as unknown as { GEMINI_API_KEY?: string; VITE_GEMINI_API_KEY?: string };
+const GEMINI_API_KEY = _env.GEMINI_API_KEY || _env.VITE_GEMINI_API_KEY || '';
 
 async function callGemini(apiKey: string, prompt: string): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -35,11 +36,11 @@ async function callGemini(apiKey: string, prompt: string): Promise<string> {
   return text;
 }
 
-function tryParseJson<T = any>(text: string): T | null {
-  try { return JSON.parse(text) as T; } catch {}
+function tryParseJson<T = unknown>(text: string): T | null {
+  try { return JSON.parse(text) as T; } catch { /* ignore */ }
   // try to extract {...}
   const match = text.match(/\{[\s\S]*\}/);
-  if (match) { try { return JSON.parse(match[0]) as T; } catch {} }
+  if (match) { try { return JSON.parse(match[0]) as T; } catch { /* ignore */ } }
   return null;
 }
 
@@ -170,11 +171,6 @@ const AICoach = () => {
   const [phase, setPhase] = useState(0);
   const [typing, setTyping] = useState(false);
   const [userInput, setUserInput] = useState('');
-  const [apiKey, setApiKey] = useState<string>(() => {
-    try { return localStorage.getItem(GEMINI_KEY_STORAGE) || ''; } catch { return ''; }
-  });
-  const [showKeyForm, setShowKeyForm] = useState(false);
-  const [keyInput, setKeyInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const quizScores = (() => {
@@ -183,7 +179,7 @@ const AICoach = () => {
       try {
         const stored = localStorage.getItem('quizAnswers');
         if (stored) answers = JSON.parse(stored);
-      } catch {}
+      } catch { /* ignore */ }
     }
     return calculateQuizScores(answers);
   })();
@@ -203,16 +199,16 @@ const AICoach = () => {
 
   // Ask Gemini for a follow-up question with options
   async function aiGenerateFirstQuestion(): Promise<Message[] | null> {
-    if (!apiKey) return null;
+    if (!GEMINI_API_KEY) return null;
     const weak = sorted[0];
     const prompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework. The user just completed an assessment with these scores (0-100, higher = better): ${scoresContext}. Their weakest area is "${domainLabels[weak[0]]}" at ${weak[1]}/100.
 
 Reply ONLY in JSON with this exact shape:
 {"intro":"<2-3 sentence empathetic intro that names their weakest domain and score, uses **bold** for emphasis>","question":"<one specific follow-up question to better understand them>","options":["opt1","opt2","opt3","opt4"]}
 
-Make options first-person statements (e.g., "I feel...") relevant to ${domainLabels[weak[0]]}. No markdown fences. Pure JSON.`;
+    Make options first-person statements (e.g., "I feel...") relevant to ${domainLabels[weak[0]]}. No markdown fences. Pure JSON.`;
     try {
-      const text = await callGemini(apiKey, prompt);
+      const text = await callGemini(GEMINI_API_KEY, prompt);
       const json = tryParseJson<{ intro: string; question: string; options: string[] }>(text);
       if (!json?.intro || !json?.question || !Array.isArray(json?.options)) return null;
       return [
@@ -226,7 +222,7 @@ Make options first-person statements (e.g., "I feel...") relevant to ${domainLab
   }
 
   async function aiGenerateFollowUp(history: Message[]): Promise<Message | null> {
-    if (!apiKey) return null;
+    if (!GEMINI_API_KEY) return null;
     const transcript = history.map(m => `${m.role === 'ai' ? 'Coach' : 'User'}: ${m.text}`).join('\n');
     const prompt = `Continue this CSI-Y coaching conversation. Scores: ${scoresContext}.
 Transcript so far:
@@ -237,7 +233,7 @@ Generate the next follow-up. Reply ONLY in JSON:
 
 If the question should be open-ended, set options to null. Pure JSON, no markdown.`;
     try {
-      const text = await callGemini(apiKey, prompt);
+      const text = await callGemini(GEMINI_API_KEY, prompt);
       const json = tryParseJson<{ question: string; options: string[] | null }>(text);
       if (!json?.question) return null;
       return {
@@ -252,7 +248,7 @@ If the question should be open-ended, set options to null. Pure JSON, no markdow
   }
 
   async function aiGenerateClosing(history: Message[]): Promise<Message | null> {
-    if (!apiKey) return null;
+    if (!GEMINI_API_KEY) return null;
     const solutions = getRecommendedSolutions(quizScores);
     const transcript = history.map(m => `${m.role === 'ai' ? 'Coach' : 'User'}: ${m.text}`).join('\n');
     const prompt = `Wrap up this CSI-Y coaching session. Scores: ${scoresContext}.
@@ -263,7 +259,7 @@ Reply ONLY in JSON:
 {"summary":"<2-4 sentence empathetic synthesis referencing what the user shared. Use **bold** sparingly.>"}
 No markdown fences.`;
     try {
-      const text = await callGemini(apiKey, prompt);
+      const text = await callGemini(GEMINI_API_KEY, prompt);
       const json = tryParseJson<{ summary: string }>(text);
       const summary = json?.summary || `Based on our conversation, here are evidence-based interventions tailored to you.`;
       return { id: 'solutions', role: 'ai', text: summary, solutionCards: solutions };
@@ -289,7 +285,7 @@ No markdown fences.`;
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey]);
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -331,15 +327,6 @@ No markdown fences.`;
     advance(next);
   };
 
-  const saveKey = () => {
-    if (!keyInput.trim()) return;
-    try { localStorage.setItem(GEMINI_KEY_STORAGE, keyInput.trim()); } catch {}
-    setApiKey(keyInput.trim());
-    setShowKeyForm(false);
-    setMessages([]);
-    setPhase(0);
-  };
-
   const currentMessage = messages[messages.length - 1];
   const showTextInput = (phase === 2 || phase === 3) && currentMessage?.role === 'ai' && !currentMessage?.options;
   const showOptions = currentMessage?.role === 'ai' && currentMessage?.options;
@@ -356,34 +343,9 @@ No markdown fences.`;
               <Bot className="w-4 h-4 text-primary-foreground" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-semibold text-foreground">Bandwidth AI Coach</p>
-              <p className="text-[10px] text-muted-foreground">{apiKey ? 'Powered by Gemini' : 'Using offline mode (add Gemini key for live AI)'}</p>
+              <p className="text-sm font-semibold text-foreground">Coach</p>
             </div>
-            <button
-              onClick={() => { setKeyInput(apiKey); setShowKeyForm(v => !v); }}
-              className="flex items-center gap-1 px-2 py-1 rounded-md border border-border text-[10px] font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
-            >
-              <KeyRound className="w-3 h-3" />
-              {apiKey ? 'Change key' : 'Add Gemini key'}
-            </button>
           </div>
-          {showKeyForm && (
-            <div className="max-w-lg mx-auto mt-3 flex gap-2">
-              <input
-                value={keyInput}
-                onChange={e => setKeyInput(e.target.value)}
-                placeholder="Paste your Google Gemini API key"
-                className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-foreground text-xs focus:border-primary focus:outline-none"
-                type="password"
-              />
-              <button
-                onClick={saveKey}
-                className="px-3 py-2 rounded-md gradient-primary text-primary-foreground text-xs font-semibold"
-              >
-                Save
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Chat area */}

@@ -1,3 +1,8 @@
-# Welcome to your Lovable project
+# Mindful Bandwidth
 
-TODO: Document your project here
+Local dev:
+
+```sh
+npm install
+npm run dev
+```
