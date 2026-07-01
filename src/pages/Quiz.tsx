@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
+import Translate from '@/components/Translate';
 import { allQuestions, shuffleQuestions, getScaleOptions, quizCategories, calculateQuizScores } from '@/lib/quizData';
 import { ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
@@ -77,7 +78,7 @@ const Quiz = () => {
   const answeredCount = Object.keys(answers).length;
   const reachedMin = answeredCount >= MIN_REQUIRED;
 
-  if (!question) return <PageTransition><div className="min-h-screen flex items-center justify-center text-foreground">Loading...</div></PageTransition>;
+  if (!question) return <PageTransition><div className="min-h-screen flex items-center justify-center text-foreground"><Translate>Loading...</Translate></div></PageTransition>;
 
   return (
     <PageTransition>
@@ -87,10 +88,10 @@ const Quiz = () => {
           {/* Header bar */}
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-medium text-muted-foreground">
-              Question {currentIndex + 1} of {shuffled.length}
+              <Translate>Question</Translate> {currentIndex + 1} <Translate>of</Translate> {shuffled.length}
             </span>
             <span className="text-xs font-semibold text-primary">
-              {progress}% complete
+              {progress}% <Translate>complete</Translate>
             </span>
           </div>
 
@@ -194,7 +195,7 @@ const Quiz = () => {
                 className="flex items-center gap-1.5 px-4 py-2 rounded-md border border-border bg-card text-foreground font-medium text-sm disabled:opacity-30 hover:border-primary/30 transition-all"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                Back
+                <Translate>Back</Translate>
               </button>
 
               {allAnswered ? (
@@ -202,7 +203,7 @@ const Quiz = () => {
                   onClick={handleFinish}
                   className="gradient-primary text-primary-foreground px-6 py-2 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2"
                 >
-                  View Results
+                  <Translate>View Results</Translate>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               ) : (
@@ -212,7 +213,7 @@ const Quiz = () => {
                   title={!reachedMin ? `Answer at least ${MIN_REQUIRED} to skip` : ''}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-md border border-border bg-card text-foreground font-medium text-sm disabled:opacity-30 hover:border-primary/30 transition-all"
                 >
-                  Skip
+                  <Translate>Skip</Translate>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -226,13 +227,13 @@ const Quiz = () => {
                 onClick={handleFinish}
                 className="w-full py-2 rounded-md text-xs font-medium text-muted-foreground hover:text-primary border border-dashed border-border hover:border-primary/30 transition-all"
               >
-                I've answered enough — show my results ({answeredCount} answered)
+                <Translate>I've answered enough — show my results</Translate> ({answeredCount} <Translate>answered</Translate>)
               </motion.button>
             )}
 
             {!reachedMin && (
               <p className="text-[11px] text-center text-muted-foreground">
-                Answer at least {MIN_REQUIRED} questions to unlock results ({answeredCount}/{MIN_REQUIRED})
+                <Translate>Answer at least</Translate> {MIN_REQUIRED} <Translate>questions to unlock results</Translate> ({answeredCount}/{MIN_REQUIRED})
               </p>
             )}
           </div>

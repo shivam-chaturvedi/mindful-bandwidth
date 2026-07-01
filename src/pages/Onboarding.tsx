@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
 import FloatingShapes from '@/components/FloatingShapes';
 import PageTransition from '@/components/PageTransition';
+import Translate from '@/components/Translate';
 import { Brain, Target, Clock, Zap, Shield, Sparkles, ArrowRight } from 'lucide-react';
 
 const options = [
@@ -43,13 +44,13 @@ const Onboarding = () => {
           >
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary text-xs font-semibold rounded-sm mb-4">
               <Brain className="w-3.5 h-3.5" />
-              BANDWIDTH
+              <Translate>BANDWIDTH</Translate>
             </div>
             <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 leading-tight">
-              What's on your mind?
+              <Translate>What's on your mind?</Translate>
             </h1>
             <p className="text-muted-foreground text-sm">
-              Select everything that resonates with you.
+              <Translate>Select everything that resonates with you.</Translate>
             </p>
           </motion.div>
 
@@ -73,7 +74,9 @@ const Onboarding = () => {
                   `}
                 >
                   <Icon className={`w-5 h-5 mb-2.5 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                  <span className="text-sm font-medium text-foreground block">{opt.label}</span>
+                  <span className="text-sm font-medium text-foreground block">
+                    <Translate>{opt.label}</Translate>
+                  </span>
                   <AnimatePresence>
                     {isSelected && (
                       <motion.div
@@ -109,7 +112,7 @@ const Onboarding = () => {
                 }
               `}
             >
-              Continue
+              <Translate>Continue</Translate>
               <ArrowRight className="w-4 h-4" />
             </button>
           </motion.div>

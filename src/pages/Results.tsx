@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
+import Translate from '@/components/Translate';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import { ArrowRight, Brain, Clock, Zap, Users, DollarSign, TrendingUp } from 'lucide-react';
 
@@ -78,13 +79,13 @@ const Results = () => {
           >
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-success/10 text-success text-[10px] font-semibold uppercase tracking-wider rounded-sm mb-3">
               <TrendingUp className="w-3 h-3" />
-              Analysis Complete
+              <Translate>Analysis Complete</Translate>
             </div>
             <h1 className="text-2xl font-bold text-foreground mb-1">
-              How your mind works under pressure
+              <Translate>How your mind works under pressure</Translate>
             </h1>
             <p className="text-muted-foreground text-sm">
-              Combined assessment and behavioral analysis
+              <Translate>Combined assessment and behavioral analysis</Translate>
             </p>
           </motion.div>
 
@@ -130,12 +131,16 @@ const Results = () => {
                       <Icon className="w-4 h-4 text-foreground" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-foreground">{dim.label}</p>
+                      <p className="text-sm font-semibold text-foreground">
+                        <Translate>{dim.label}</Translate>
+                      </p>
                     </div>
-                    <span className={`text-[10px] font-semibold ${level.color}`}>{level.label}</span>
+                    <span className={`text-[10px] font-semibold ${level.color}`}>
+                      <Translate>{level.label}</Translate>
+                    </span>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed pl-11">
-                    {getInsight(dim.key, dim.score)}
+                    <Translate>{getInsight(dim.key, dim.score)}</Translate>
                   </p>
                 </motion.div>
               );
@@ -149,31 +154,20 @@ const Results = () => {
             transition={{ delay: 0.8 }}
             className="glass-card-elevated p-6 mb-4"
           >
-            <p className="text-xs text-muted-foreground mb-1">Your biggest area for growth</p>
-            <p className="text-lg font-bold text-foreground mb-4">{lowest.label}</p>
+            <p className="text-xs text-muted-foreground mb-1">
+              <Translate>Your biggest area for growth</Translate>
+            </p>
+            <p className="text-lg font-bold text-foreground mb-4">
+              <Translate>{lowest.label}</Translate>
+            </p>
             <button
               onClick={() => navigate('/interventions')}
               className="w-full gradient-primary text-primary-foreground py-2.5 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2"
             >
-              Get Your Action Plan
+              <Translate>Get Your Action Plan</Translate>
               <ArrowRight className="w-4 h-4" />
             </button>
           </motion.div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => navigate('/breathing')}
-              className="flex-1 py-2.5 rounded-md border border-border bg-card text-foreground font-medium text-sm hover:border-primary/30 transition-all"
-            >
-              Breathing Tool
-            </button>
-            <button
-              onClick={() => navigate('/community')}
-              className="flex-1 py-2.5 rounded-md border border-border bg-card text-foreground font-medium text-sm hover:border-primary/30 transition-all"
-            >
-              Join Community
-            </button>
-          </div>
         </div>
       </div>
     </PageTransition>

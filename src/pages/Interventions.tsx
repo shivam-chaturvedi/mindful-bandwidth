@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
+import Translate from '@/components/Translate';
 import { ArrowRight, Target, ListChecks, CalendarDays, Check } from 'lucide-react';
 
 const interventions: Record<string, { title: string; desc: string; steps: string[]; icon: any; color: string }> = {
@@ -45,7 +46,7 @@ const interventions: Record<string, { title: string; desc: string; steps: string
 };
 
 const Interventions = () => {
-  const { scores, commitmentIntervention, setCommitmentIntervention } = useBandwidth();
+  const { scores, setCommitmentIntervention } = useBandwidth();
   const navigate = useNavigate();
   const [committed, setCommitted] = useState(false);
 
@@ -77,13 +78,13 @@ const Interventions = () => {
             className="mb-8"
           >
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wider rounded-sm mb-3">
-              <Target className="w-3 h-3" /> Action Plan
+              <Target className="w-3 h-3" /> <Translate>Action Plan</Translate>
             </div>
             <h1 className="text-2xl font-bold text-foreground mb-1">
-              Your Recommended Action
+              <Translate>Your Recommended Action</Translate>
             </h1>
             <p className="text-muted-foreground text-sm">
-              Based on your results, focus on one thing.
+              <Translate>Based on your results, focus on one thing.</Translate>
             </p>
           </motion.div>
 
@@ -96,8 +97,12 @@ const Interventions = () => {
             <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center mb-4">
               <Icon className="w-5 h-5 text-primary" />
             </div>
-            <h2 className="text-lg font-bold text-foreground mb-2">{intervention.title}</h2>
-            <p className="text-sm text-muted-foreground mb-6">{intervention.desc}</p>
+            <h2 className="text-lg font-bold text-foreground mb-2">
+              <Translate>{intervention.title}</Translate>
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              <Translate>{intervention.desc}</Translate>
+            </p>
 
             <div className="space-y-3">
               {intervention.steps.map((step, i) => (
@@ -111,7 +116,9 @@ const Interventions = () => {
                   <div className="w-6 h-6 rounded-sm bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-[11px] font-bold text-primary">{i + 1}</span>
                   </div>
-                  <p className="text-sm text-foreground">{step}</p>
+                  <p className="text-sm text-foreground">
+                    <Translate>{step}</Translate>
+                  </p>
                 </motion.div>
               ))}
             </div>
@@ -125,20 +132,20 @@ const Interventions = () => {
               className="glass-card p-6 text-center"
             >
               <p className="text-sm font-medium text-foreground mb-4">
-                "I will try this for the next 5 days"
+                <Translate>"I will try this for the next 5 days"</Translate>
               </p>
               <div className="flex gap-2 justify-center">
                 <button
                   onClick={handleCommit}
                   className="gradient-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all"
                 >
-                  Yes, I'm in
+                  <Translate>Yes, I'm in</Translate>
                 </button>
                 <button
-                  onClick={() => navigate('/community')}
+                  onClick={() => navigate('/home')}
                   className="px-5 py-2.5 rounded-md border border-border bg-card text-foreground font-medium text-sm hover:border-primary/30 transition-all"
                 >
-                  Maybe later
+                  <Translate>Maybe later</Translate>
                 </button>
               </div>
             </motion.div>
@@ -151,22 +158,18 @@ const Interventions = () => {
               <div className="w-12 h-12 rounded-md bg-success/10 flex items-center justify-center mx-auto mb-4">
                 <Check className="w-6 h-6 text-success" />
               </div>
-              <h3 className="text-lg font-bold text-foreground mb-2">You're committed</h3>
-              <p className="text-sm text-muted-foreground mb-4">We'll check in with you daily.</p>
-              <div className="flex gap-2 justify-center">
-                <button
-                  onClick={() => navigate('/checkin')}
-                  className="gradient-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold text-sm shadow-sm transition-all"
-                >
-                  Start Day 1
-                </button>
-                <button
-                  onClick={() => navigate('/community')}
-                  className="px-5 py-2.5 rounded-md border border-border bg-card text-foreground font-medium text-sm transition-all"
-                >
-                  Join Community
-                </button>
-              </div>
+              <h3 className="text-lg font-bold text-foreground mb-2">
+                <Translate>You're committed</Translate>
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                <Translate>We'll check in with you daily.</Translate>
+              </p>
+              <button
+                onClick={() => navigate('/home')}
+                className="gradient-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold text-sm shadow-sm transition-all"
+              >
+                <Translate>Back to Home</Translate>
+              </button>
             </motion.div>
           )}
         </div>

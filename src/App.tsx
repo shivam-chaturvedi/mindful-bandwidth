@@ -32,11 +32,11 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Onboarding />} />
-            <Route path="/intro" element={<Intro />} />
-            <Route path="/quiz" element={<Quiz />} />
-            <Route path="/quiz-results" element={<QuizResults />} />
             <Route element={<AppShell />}>
+              <Route path="/" element={<Onboarding />} />
+              <Route path="/intro" element={<Intro />} />
+              <Route path="/quiz" element={<Quiz />} />
+              <Route path="/quiz-results" element={<QuizResults />} />
               <Route path="/home" element={<Home />} />
               <Route path="/ai-coach" element={<AICoach />} />
               <Route path="/game/1" element={<Game1Priority />} />

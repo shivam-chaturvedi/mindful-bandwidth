@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import FloatingShapes from '@/components/FloatingShapes';
 import PageTransition from '@/components/PageTransition';
+import Translate from '@/components/Translate';
 import { ArrowRight, Brain, BarChart3, Users } from 'lucide-react';
 
 const Intro = () => {
@@ -22,11 +23,11 @@ const Intro = () => {
             </div>
 
             <h1 className="text-2xl font-bold text-foreground mb-3 leading-tight">
-              Your brain works differently under pressure
+              <Translate>Your brain works differently under pressure</Translate>
             </h1>
 
             <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-              Research shows that stress and scarcity can reduce cognitive performance by up to 13 IQ points. Let's understand how your mind handles pressure through a series of validated assessments and interactive challenges.
+              <Translate>Research shows that stress and scarcity can reduce cognitive performance by up to 13 IQ points. Let's understand how your mind handles pressure through a series of validated assessments and interactive challenges.</Translate>
             </p>
 
             {/* What you'll do */}
@@ -47,8 +48,12 @@ const Intro = () => {
                     <item.icon className="w-4 h-4 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-foreground">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">{item.sub}</p>
+                    <p className="text-sm font-medium text-foreground">
+                      <Translate>{item.label}</Translate>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      <Translate>{item.sub}</Translate>
+                    </p>
                   </div>
                 </motion.div>
               ))}
@@ -58,12 +63,12 @@ const Intro = () => {
               onClick={() => navigate('/quiz')}
               className="w-full gradient-primary text-primary-foreground py-3 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all duration-150 flex items-center justify-center gap-2"
             >
-              Start Assessment
+              <Translate>Start Assessment</Translate>
               <ArrowRight className="w-4 h-4" />
             </button>
 
             <p className="text-[11px] text-muted-foreground mt-3 text-center">
-              Takes about 10–15 minutes · No right or wrong answers
+              <Translate>Takes about 10–15 minutes · No right or wrong answers</Translate>
             </p>
           </motion.div>
         </div>

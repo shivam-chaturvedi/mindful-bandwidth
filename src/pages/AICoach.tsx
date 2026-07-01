@@ -4,33 +4,45 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
-import { calculateQuizScores, quizCategories } from '@/lib/quizData';
+import { calculateQuizScores } from '@/lib/quizData';
 import { getRecommendedSolutions, Solution } from '@/lib/solutions';
-import { ArrowRight, Bot, User, Send, Sparkles } from 'lucide-react';
+import { ArrowRight, Bot, User, Send, Sparkles, ArrowLeft, RefreshCw, Languages } from 'lucide-react';
+import translate from 'google-translate-api-x';
 
 interface Message {
   id: string;
   role: 'ai' | 'user';
-  text: string;
-  options?: string[];
+  text: string; // Original English text
+  translatedText?: Record<string, string>; // Translated versions
+  options?: string[]; // Original English options
+  translatedOptions?: Record<string, string[]>; // Translated versions of options
   solutionCards?: Solution[];
 }
 
-const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const _env = import.meta.env as unknown as { GEMINI_API_KEY?: string; VITE_GEMINI_API_KEY?: string };
-const GEMINI_API_KEY = _env.GEMINI_API_KEY || _env.VITE_GEMINI_API_KEY || '';
+const GEMINI_API_KEY = _env.VITE_GEMINI_API_KEY || _env.GEMINI_API_KEY || '';
 
-async function callGemini(apiKey: string, prompt: string): Promise<string> {
+async function callGemini(apiKey: string, contents: any[], systemInstructionText: string): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.8, responseMimeType: 'application/json' },
+      contents: contents,
+      systemInstruction: {
+        parts: [{ text: systemInstructionText }]
+      },
+      generationConfig: { 
+        temperature: 0.7, 
+        responseMimeType: 'application/json' 
+      },
     }),
   });
-  if (!res.ok || res.status >= 400) throw new Error(`Gemini error ${res.status}`);
+  if (!res.ok || res.status >= 400) {
+    const errText = await res.text();
+    throw new Error(`Gemini error ${res.status}: ${errText}`);
+  }
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
   return text;
@@ -38,130 +50,62 @@ async function callGemini(apiKey: string, prompt: string): Promise<string> {
 
 function tryParseJson<T = unknown>(text: string): T | null {
   try { return JSON.parse(text) as T; } catch { /* ignore */ }
-  // try to extract {...}
   const match = text.match(/\{[\s\S]*\}/);
   if (match) { try { return JSON.parse(match[0]) as T; } catch { /* ignore */ } }
   return null;
 }
 
-// Hardcoded fallback conversation
-function generateConversation(scores: Record<string, number>): Message[] {
-  const sorted = Object.entries(scores).sort(([, a], [, b]) => a - b);
-  const weakest = sorted[0];
-  const secondWeakest = sorted[1];
+const domainLabels: Record<string, string> = {
+  stress: 'stress management',
+  selfControl: 'self-control & impulse regulation',
+  timeManagement: 'time management & planning',
+  financialThreat: 'financial pressure',
+  socialConnectedness: 'social connection',
+};
 
-  const domainLabels: Record<string, string> = {
-    stress: 'stress management',
-    selfControl: 'self-control & impulse regulation',
-    timeManagement: 'time management & planning',
-    financialThreat: 'financial pressure',
-    socialConnectedness: 'social connection',
-  };
-
-  const weakLabel = domainLabels[weakest[0]] || weakest[0];
-  const secondLabel = domainLabels[secondWeakest[0]] || secondWeakest[0];
-
-  const followUps: Message[] = [
-    {
-      id: 'intro',
-      role: 'ai',
-      text: `Based on your assessment, I can see that **${weakLabel}** is the area where stress is impacting your thinking the most. Your score was ${weakest[1]} out of 100.\n\nThis doesn't mean something is wrong — it means this is where scarcity is taxing your cognitive bandwidth the most right now.`,
-    },
-    {
-      id: 'q1',
-      role: 'ai',
-      text: `Let me understand this better. When it comes to **${weakLabel}**, what feels most true for you right now?`,
-      options: getOptionsForDomain(weakest[0]),
-    },
-  ];
-
-  return followUps;
+async function translateText(text: string, to: string, from = 'auto'): Promise<string> {
+  if (!text || !text.trim()) return text;
+  try {
+    const res = await translate(text, { from, to, client: 'gtx' });
+    return res.text;
+  } catch (e) {
+    console.error('Translation failed:', e);
+    return text;
+  }
 }
 
-function getOptionsForDomain(domain: string): string[] {
-  const options: Record<string, string[]> = {
-    stress: [
-      'I feel overwhelmed most days',
-      'Stress comes in waves — some days are fine',
-      'I know I\'m stressed but I push through',
-      'I don\'t have good ways to cope',
-    ],
-    selfControl: [
-      'I often act on impulse and regret it later',
-      'I struggle to stick with plans',
-      'Distractions pull me away from important work',
-      'I choose short-term comfort over long-term goals',
-    ],
-    timeManagement: [
-      'I never have enough time for everything',
-      'I procrastinate even when I know the deadline',
-      'I\'m busy all day but don\'t feel productive',
-      'I don\'t know how to prioritize effectively',
-    ],
-    financialThreat: [
-      'Money worries keep me up at night',
-      'I avoid thinking about finances entirely',
-      'I make spending decisions I later regret',
-      'Financial stress affects my focus on other things',
-    ],
-    socialConnectedness: [
-      'I feel isolated even around people',
-      'I take on too much to please others',
-      'I don\'t have people I can really talk to',
-      'I struggle to ask for help when I need it',
-    ],
-  };
-  return options[domain] || options.stress;
+async function translateOptions(opts: string[], to: string, from = 'auto'): Promise<string[]> {
+  if (!opts || opts.length === 0) return [];
+  try {
+    const res = await translate(opts, { from, to, client: 'gtx' });
+    if (Array.isArray(res)) {
+      return res.map(r => r.text);
+    }
+    return opts;
+  } catch (e) {
+    console.error('Options translation failed:', e);
+    return opts;
+  }
 }
 
-function getFollowUp2(domain: string): Message {
-  const questions: Record<string, string> = {
-    stress: 'When you\'re under pressure, what usually happens to your decision-making? Do you notice yourself making different choices than you normally would?',
-    selfControl: 'Think about the last time you gave in to an impulse. What was the situation, and what do you think triggered it?',
-    timeManagement: 'When you have multiple things to do, how do you decide what to work on first? Do you have a system, or does it feel random?',
-    financialThreat: 'How often do financial concerns pop into your mind when you\'re trying to focus on something else — like studying or working?',
-    socialConnectedness: 'When you\'re going through a tough time, do you tend to reach out to others or handle it alone? What stops you from asking for help?',
-  };
-  return {
-    id: 'q2',
-    role: 'ai',
-    text: questions[domain] || questions.stress,
-  };
-}
+function buildGeminiContents(history: Message[]): any[] {
+  const contents: any[] = [];
+  
+  history.forEach((msg) => {
+    const role = msg.role === 'ai' ? 'model' : 'user';
+    const text = msg.text;
+    
+    if (contents.length > 0 && contents[contents.length - 1].role === role) {
+      contents[contents.length - 1].parts[0].text += '\n\n' + text;
+    } else {
+      contents.push({
+        role,
+        parts: [{ text }]
+      });
+    }
+  });
 
-function getFollowUp3(domain: string, scores: Record<string, number>): Message {
-  const sorted = Object.entries(scores).sort(([, a], [, b]) => a - b);
-  const secondWeakest = sorted[1];
-  const domainLabels: Record<string, string> = {
-    stress: 'stress',
-    selfControl: 'self-control',
-    timeManagement: 'time management',
-    financialThreat: 'financial pressure',
-    socialConnectedness: 'social connection',
-  };
-  const secondLabel = domainLabels[secondWeakest[0]] || secondWeakest[0];
-
-  return {
-    id: 'q3',
-    role: 'ai',
-    text: `Thank you for sharing that. I also noticed your **${secondLabel}** score (${secondWeakest[1]}/100) suggests some strain there too.\n\nResearch shows these domains are interconnected — stress in one area often spills over into others. This is called the **"bandwidth tax"** (Mullainathan & Shafir, 2013).\n\nDo you feel like these two areas are connected for you?`,
-    options: [
-      'Yes, they definitely feed into each other',
-      'Maybe — I haven\'t thought about it that way',
-      'Not really — they feel separate',
-      'I\'m not sure',
-    ],
-  };
-}
-
-function getSolutionMessage(scores: Record<string, number>): Message {
-  const solutions = getRecommendedSolutions(scores);
-  return {
-    id: 'solutions',
-    role: 'ai',
-    text: `Based on our conversation and your assessment results, I've identified **${solutions.length} evidence-based interventions** from the Cognitive Scarcity Toolkit (CSI-Y) that can help.\n\nThese are designed to be practical and take minimal time — because when bandwidth is low, the last thing you need is a complex program.`,
-    solutionCards: solutions,
-  };
+  return contents;
 }
 
 const AICoach = () => {
@@ -171,6 +115,9 @@ const AICoach = () => {
   const [phase, setPhase] = useState(0);
   const [typing, setTyping] = useState(false);
   const [userInput, setUserInput] = useState('');
+  const { language } = useBandwidth();
+  const [errorMsg, setErrorMsg] = useState('');
+  const [translating, setTranslating] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const quizScores = (() => {
@@ -186,171 +133,393 @@ const AICoach = () => {
 
   const sorted = Object.entries(quizScores).sort(([, a], [, b]) => a - b);
   const weakestDomain = sorted[0]?.[0] || 'stress';
-  const domainLabels: Record<string, string> = {
-    stress: 'stress management',
-    selfControl: 'self-control & impulse regulation',
-    timeManagement: 'time management & planning',
-    financialThreat: 'financial pressure',
-    socialConnectedness: 'social connection',
-  };
 
   // Build a context string from scores
   const scoresContext = JSON.stringify(quizScores);
 
   // Ask Gemini for a follow-up question with options
-  async function aiGenerateFirstQuestion(): Promise<Message[] | null> {
-    if (!GEMINI_API_KEY) return null;
+  const aiGenerateFirstQuestion = async (): Promise<Message[] | null> => {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') {
+      setErrorMsg('Please configure your Gemini API Key in the .env file (VITE_GEMINI_API_KEY) to start chatting with the Coach.');
+      return null;
+    }
     const weak = sorted[0];
-    const prompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework. The user just completed an assessment with these scores (0-100, higher = better): ${scoresContext}. Their weakest area is "${domainLabels[weak[0]]}" at ${weak[1]}/100.
+    const systemPrompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
+The user just completed an assessment with these scores (0-100, higher = better): ${scoresContext}.
+Their weakest area is "${domainLabels[weak[0]]}" at ${weak[1]}/100.
 
-Reply ONLY in JSON with this exact shape:
+You must reply ONLY in JSON with this exact shape:
 {"intro":"<2-3 sentence empathetic intro that names their weakest domain and score, uses **bold** for emphasis>","question":"<one specific follow-up question to better understand them>","options":["opt1","opt2","opt3","opt4"]}
 
-    Make options first-person statements (e.g., "I feel...") relevant to ${domainLabels[weak[0]]}. No markdown fences. Pure JSON.`;
+Make options first-person statements (e.g., "I feel...") relevant to ${domainLabels[weak[0]]}. Do not include markdown code block fences (like \`\`\`json) in your response, just the raw JSON.`;
+
     try {
-      const text = await callGemini(GEMINI_API_KEY, prompt);
+      const text = await callGemini(GEMINI_API_KEY, [{ role: 'user', parts: [{ text: 'Start session.' }] }], systemPrompt);
       const json = tryParseJson<{ intro: string; question: string; options: string[] }>(text);
-      if (!json?.intro || !json?.question || !Array.isArray(json?.options)) return null;
+      if (!json?.intro || !json?.question || !Array.isArray(json?.options)) {
+        throw new Error('Invalid JSON response structure');
+      }
       return [
         { id: 'intro', role: 'ai', text: json.intro },
         { id: 'q1', role: 'ai', text: json.question, options: json.options.slice(0, 4) },
       ];
     } catch (e) {
-      console.warn('Gemini failed, falling back', e);
+      console.error('Gemini first question failed', e);
+      setErrorMsg('Failed to communicate with Gemini. Please verify your API key and connection details in the .env file.');
       return null;
     }
-  }
+  };
 
-  async function aiGenerateFollowUp(history: Message[]): Promise<Message | null> {
-    if (!GEMINI_API_KEY) return null;
-    const transcript = history.map(m => `${m.role === 'ai' ? 'Coach' : 'User'}: ${m.text}`).join('\n');
-    const prompt = `Continue this CSI-Y coaching conversation. Scores: ${scoresContext}.
-Transcript so far:
-${transcript}
+  const aiGenerateFollowUp = async (history: Message[]): Promise<Message | null> => {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') return null;
+    const contents = buildGeminiContents(history);
+    const targetPhase = phase + 1;
+    let phaseInstruction = '';
 
-Generate the next follow-up. Reply ONLY in JSON:
-{"question":"<single thoughtful follow-up question, may use **bold**>","options":["opt1","opt2","opt3","opt4"] OR null}
+    if (targetPhase === 2) {
+      phaseInstruction = `This is Phase 2 of the conversation. Ask a follow-up question to explore how their weakest domain ("${domainLabels[weakestDomain]}") affects their decision-making or daily life. Generate an open-ended question (set options to null in the response).`;
+    } else if (targetPhase === 3) {
+      const secondWeakest = sorted[1]?.[0] || 'stress';
+      const secondWeakLabel = domainLabels[secondWeakest] || secondWeakest;
+      phaseInstruction = `This is Phase 3 of the conversation. Ask a question to see if their weakest domain is connected to their second weakest domain ("${secondWeakLabel}" at ${sorted[1]?.[1]}/100). Provide 3-4 options for the user.`;
+    }
 
-If the question should be open-ended, set options to null. Pure JSON, no markdown.`;
+    const systemPrompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
+Scores: ${scoresContext}
+
+${phaseInstruction}
+
+Reply ONLY in JSON in this exact shape:
+{"question":"<single thoughtful follow-up question, may use **bold**>","options":["opt1","opt2","opt3","opt4"] or null}
+
+If the question should be open-ended, set options to null. Do not include markdown code block fences (like \`\`\`json) in your response, just the raw JSON.`;
+
     try {
-      const text = await callGemini(GEMINI_API_KEY, prompt);
+      const text = await callGemini(GEMINI_API_KEY, contents, systemPrompt);
       const json = tryParseJson<{ question: string; options: string[] | null }>(text);
-      if (!json?.question) return null;
+      if (!json?.question) throw new Error('Invalid JSON response structure');
       return {
         id: `ai-${Date.now()}`,
         role: 'ai',
         text: json.question,
         options: Array.isArray(json.options) ? json.options.slice(0, 4) : undefined,
       };
-    } catch {
+    } catch (e) {
+      console.error('Gemini follow-up failed', e);
+      setErrorMsg('Failed to communicate with Gemini. Please verify your API key and connection details in the .env file.');
       return null;
     }
-  }
+  };
 
-  async function aiGenerateClosing(history: Message[]): Promise<Message | null> {
-    if (!GEMINI_API_KEY) return null;
+  const aiGenerateClosing = async (history: Message[]): Promise<Message | null> => {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') return null;
+    const contents = buildGeminiContents(history);
     const solutions = getRecommendedSolutions(quizScores);
-    const transcript = history.map(m => `${m.role === 'ai' ? 'Coach' : 'User'}: ${m.text}`).join('\n');
-    const prompt = `Wrap up this CSI-Y coaching session. Scores: ${scoresContext}.
-Transcript:
-${transcript}
+    
+    const systemPrompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
+Scores: ${scoresContext}
 
-Reply ONLY in JSON:
-{"summary":"<2-4 sentence empathetic synthesis referencing what the user shared. Use **bold** sparingly.>"}
-No markdown fences.`;
+This is the end of the conversation. Provide a warm, supportive closing summary that synthesizes what they shared and how their bandwidth is taxed.
+
+Reply ONLY in JSON in this exact shape:
+{"summary":"<2-4 sentence empathetic synthesis summarizing their situation. Use **bold** sparingly.>"}
+
+Do not include markdown code block fences (like \`\`\`json) in your response, just the raw JSON.`;
+
     try {
-      const text = await callGemini(GEMINI_API_KEY, prompt);
+      const text = await callGemini(GEMINI_API_KEY, contents, systemPrompt);
       const json = tryParseJson<{ summary: string }>(text);
       const summary = json?.summary || `Based on our conversation, here are evidence-based interventions tailored to you.`;
       return { id: 'solutions', role: 'ai', text: summary, solutionCards: solutions };
-    } catch {
+    } catch (e) {
+      console.error('Gemini closing failed', e);
+      setErrorMsg('Failed to communicate with Gemini. Please verify your API key and connection details in the .env file.');
       return null;
     }
-  }
+  };
 
-  // Initialize conversation (Gemini-first, fallback to hardcoded)
+  // Load session from local storage or start new, and listen for reset events
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setTyping(true);
-      let initial = await aiGenerateFirstQuestion();
-      if (!initial) initial = generateConversation(quizScores);
-      if (cancelled) return;
-      setMessages([initial[0]]);
-      await new Promise(r => setTimeout(r, 700));
-      if (cancelled) return;
-      setMessages([initial[0], initial[1]]);
-      setTyping(false);
-      setPhase(1);
-    })();
-    return () => { cancelled = true; };
+    const handleResetEvent = () => {
+      resetSession();
+    };
+    window.addEventListener('reset-ai-coach', handleResetEvent);
+
+    const storedMessages = localStorage.getItem('ai_coach_messages');
+    const storedPhase = localStorage.getItem('ai_coach_phase');
+    const storedLanguage = localStorage.getItem('ai_coach_language');
+
+    if (storedMessages && storedPhase) {
+      const parsedMsgs = JSON.parse(storedMessages);
+      setMessages(parsedMsgs);
+      setPhase(parseInt(storedPhase, 10));
+    } else {
+      const initSession = async () => {
+        setTyping(true);
+        setErrorMsg('');
+        const initial = await aiGenerateFirstQuestion();
+        if (initial) {
+          const introMsg = initial[0];
+          const q1Msg = initial[1];
+
+          const currentLang = storedLanguage || 'en';
+          if (currentLang === 'hi') {
+            const transIntro = await translateText(introMsg.text, 'hi');
+            introMsg.translatedText = { hi: transIntro };
+
+            const transQ1 = await translateText(q1Msg.text, 'hi');
+            q1Msg.translatedText = { hi: transQ1 };
+
+            if (q1Msg.options) {
+              const transOpts = await translateOptions(q1Msg.options, 'hi');
+              q1Msg.translatedOptions = { hi: transOpts };
+            }
+          }
+
+          setMessages([introMsg]);
+          await new Promise(r => setTimeout(r, 600));
+          setMessages([introMsg, q1Msg]);
+          setPhase(1);
+        }
+        setTyping(false);
+      };
+      initSession();
+    }
+
+    return () => {
+      window.removeEventListener('reset-ai-coach', handleResetEvent);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Save session when messages or phase change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem('ai_coach_messages', JSON.stringify(messages));
+      localStorage.setItem('ai_coach_phase', phase.toString());
+    }
+  }, [messages, phase]);
+
+  const ensureTranslations = async (msgs: Message[], targetLang: string) => {
+    if (targetLang === 'en') return;
+    setTranslating(true);
+    
+    let updated = false;
+    const newMsgs = await Promise.all(msgs.map(async (msg) => {
+      const updatedMsg = { ...msg };
+      
+      if (updatedMsg.text && (!updatedMsg.translatedText || !updatedMsg.translatedText[targetLang])) {
+        const trans = await translateText(updatedMsg.text, targetLang);
+        updatedMsg.translatedText = {
+          ...updatedMsg.translatedText,
+          [targetLang]: trans
+        };
+        updated = true;
+      }
+      
+      if (updatedMsg.options && (!updatedMsg.translatedOptions || !updatedMsg.translatedOptions[targetLang])) {
+        const transOpts = await translateOptions(updatedMsg.options, targetLang);
+        updatedMsg.translatedOptions = {
+          ...updatedMsg.translatedOptions,
+          [targetLang]: transOpts
+        };
+        updated = true;
+      }
+      
+      return updatedMsg;
+    }));
+    
+    if (updated) {
+      setMessages(newMsgs);
+      localStorage.setItem('ai_coach_messages', JSON.stringify(newMsgs));
+    }
+    setTranslating(false);
+  };
+
+  useEffect(() => {
+    if (messages.length > 0 && language !== 'en') {
+      ensureTranslations(messages, language);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language]);
+
+  const advance = async (newMessages: Message[]) => {
+    setTyping(true);
+    setErrorMsg('');
+    let nextMsg: Message | null = null;
+    
+    if (phase === 1) {
+      nextMsg = await aiGenerateFollowUp(newMessages);
+      if (nextMsg) {
+        if (language === 'hi') {
+          const transText = await translateText(nextMsg.text, 'hi');
+          nextMsg.translatedText = { hi: transText };
+          if (nextMsg.options) {
+            const transOpts = await translateOptions(nextMsg.options, 'hi');
+            nextMsg.translatedOptions = { hi: transOpts };
+          }
+        }
+        setMessages(prev => [...prev, nextMsg!]);
+        setPhase(2);
+      }
+    } else if (phase === 2) {
+      nextMsg = await aiGenerateFollowUp(newMessages);
+      if (nextMsg) {
+        if (language === 'hi') {
+          const transText = await translateText(nextMsg.text, 'hi');
+          nextMsg.translatedText = { hi: transText };
+          if (nextMsg.options) {
+            const transOpts = await translateOptions(nextMsg.options, 'hi');
+            nextMsg.translatedOptions = { hi: transOpts };
+          }
+        }
+        setMessages(prev => [...prev, nextMsg!]);
+        setPhase(3);
+      }
+    } else if (phase === 3) {
+      nextMsg = await aiGenerateClosing(newMessages);
+      if (nextMsg) {
+        if (language === 'hi') {
+          const transText = await translateText(nextMsg.text, 'hi');
+          nextMsg.translatedText = { hi: transText };
+        }
+        setMessages(prev => [...prev, nextMsg!]);
+        setPhase(4);
+      }
+    }
+    setTyping(false);
+  };
+
+  const handleOptionClick = (optText: string, index: number) => {
+    const activeMsg = messages[messages.length - 1];
+    let englishText = optText;
+    let translatedText: Record<string, string> | undefined = undefined;
+
+    if (language === 'hi') {
+      if (activeMsg && activeMsg.options && activeMsg.options[index]) {
+        englishText = activeMsg.options[index];
+      }
+      translatedText = { hi: optText };
+    }
+
+    const userMsg: Message = { 
+      id: `user-${Date.now()}`, 
+      role: 'user', 
+      text: englishText,
+      translatedText
+    };
+    
+    const next = [...messages, userMsg];
+    setMessages(next);
+    advance(next);
+  };
+
+  const handleTextSubmit = async () => {
+    if (!userInput.trim()) return;
+    setTyping(true);
+    const originalText = userInput;
+    let englishText = originalText;
+    let translatedText: Record<string, string> | undefined = undefined;
+
+    if (language === 'hi') {
+      englishText = await translateText(originalText, 'en', 'hi');
+      translatedText = { hi: originalText };
+    }
+
+    const userMsg: Message = { 
+      id: `user-${Date.now()}`, 
+      role: 'user', 
+      text: englishText,
+      translatedText
+    };
+    
+    const next = [...messages, userMsg];
+    setMessages(next);
+    setUserInput('');
+    await advance(next);
+  };
+
+  const resetSession = async () => {
+    localStorage.removeItem('ai_coach_messages');
+    localStorage.removeItem('ai_coach_phase');
+    setMessages([]);
+    setPhase(0);
+    setErrorMsg('');
+    setTyping(true);
+    
+    const initial = await aiGenerateFirstQuestion();
+    if (initial) {
+      const introMsg = initial[0];
+      const q1Msg = initial[1];
+
+      if (language === 'hi') {
+        const transIntro = await translateText(introMsg.text, 'hi');
+        introMsg.translatedText = { hi: transIntro };
+
+        const transQ1 = await translateText(q1Msg.text, 'hi');
+        q1Msg.translatedText = { hi: transQ1 };
+
+        if (q1Msg.options) {
+          const transOpts = await translateOptions(q1Msg.options, 'hi');
+          q1Msg.translatedOptions = { hi: transOpts };
+        }
+      }
+
+      setMessages([introMsg]);
+      await new Promise(r => setTimeout(r, 600));
+      setMessages([introMsg, q1Msg]);
+      setPhase(1);
+    }
+    setTyping(false);
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, typing]);
 
-  const advance = async (newMessages: Message[]) => {
-    setTyping(true);
-    if (phase === 1) {
-      const next = (await aiGenerateFollowUp(newMessages)) || getFollowUp2(weakestDomain);
-      setMessages(prev => [...prev, next]);
-      setTyping(false);
-      setPhase(2);
-    } else if (phase === 2) {
-      const next = (await aiGenerateFollowUp(newMessages)) || getFollowUp3(weakestDomain, quizScores);
-      setMessages(prev => [...prev, next]);
-      setTyping(false);
-      setPhase(3);
-    } else if (phase === 3) {
-      const next = (await aiGenerateClosing(newMessages)) || getSolutionMessage(quizScores);
-      setMessages(prev => [...prev, next]);
-      setTyping(false);
-      setPhase(4);
-    }
-  };
-
-  const handleOptionClick = (option: string) => {
-    const userMsg: Message = { id: `user-${Date.now()}`, role: 'user', text: option };
-    const next = [...messages, userMsg];
-    setMessages(next);
-    advance(next);
-  };
-
-  const handleTextSubmit = () => {
-    if (!userInput.trim()) return;
-    const userMsg: Message = { id: `user-${Date.now()}`, role: 'user', text: userInput };
-    const next = [...messages, userMsg];
-    setMessages(next);
-    setUserInput('');
-    advance(next);
-  };
-
   const currentMessage = messages[messages.length - 1];
   const showTextInput = (phase === 2 || phase === 3) && currentMessage?.role === 'ai' && !currentMessage?.options;
-  const showOptions = currentMessage?.role === 'ai' && currentMessage?.options;
+
+  const getMessageText = (msg: Message) => {
+    if (language === 'hi' && msg.translatedText?.hi) {
+      return msg.translatedText.hi;
+    }
+    return msg.text;
+  };
+
+  const getMessageOptions = (msg: Message) => {
+    if (language === 'hi' && msg.translatedOptions?.hi) {
+      return msg.translatedOptions.hi;
+    }
+    return msg.options;
+  };
 
   return (
     <PageTransition>
-      <div className="min-h-screen flex flex-col relative">
+      <div className="min-h-screen flex flex-col relative bg-background">
         <FloatingShapes />
 
-        {/* Header */}
-        <div className="relative z-10 border-b border-border bg-card/80 backdrop-blur-sm px-4 py-3">
-          <div className="max-w-lg mx-auto flex items-center gap-3">
-            <div className="w-8 h-8 rounded-sm gradient-primary flex items-center justify-center">
-              <Bot className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-foreground">Coach</p>
-            </div>
-          </div>
-        </div>
 
         {/* Chat area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 relative z-10">
           <div className="max-w-lg mx-auto space-y-4">
+            
+            {errorMsg && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm rounded-md p-4 mb-4">
+                <p className="font-semibold mb-1">Configuration Required</p>
+                <p className="text-xs leading-relaxed">{errorMsg}</p>
+              </div>
+            )}
+
+            {translating && (
+              <div className="text-center py-2 mb-2">
+                <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5 animate-pulse">
+                  <Languages className="w-3.5 h-3.5" />
+                  Translating chat history...
+                </p>
+              </div>
+            )}
+
             <AnimatePresence>
               {messages.map((msg) => (
                 <motion.div
@@ -361,7 +530,7 @@ No markdown fences.`;
                 >
                   <div className={`flex gap-2.5 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                     <div className={`w-7 h-7 rounded-sm flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                      msg.role === 'ai' ? 'bg-primary/10' : 'bg-muted'
+                       msg.role === 'ai' ? 'bg-primary/10' : 'bg-muted'
                     }`}>
                       {msg.role === 'ai' ? <Bot className="w-3.5 h-3.5 text-primary" /> : <User className="w-3.5 h-3.5 text-muted-foreground" />}
                     </div>
@@ -371,7 +540,7 @@ No markdown fences.`;
                           ? 'bg-card border border-border text-foreground'
                           : 'bg-primary text-primary-foreground'
                       }`}>
-                        {msg.text.split('\n').map((line, i) => (
+                        {getMessageText(msg).split('\n').map((line, i) => (
                           <p key={i} className={i > 0 ? 'mt-2' : ''}>
                             {line.split(/(\*\*.*?\*\*)/).map((part, j) =>
                               part.startsWith('**') && part.endsWith('**')
@@ -409,10 +578,10 @@ No markdown fences.`;
                           {/* CTA after solutions */}
                           <div className="pt-2 flex gap-2">
                             <button
-                              onClick={() => navigate('/game/1')}
+                              onClick={() => navigate('/home')}
                               className="flex-1 gradient-primary text-primary-foreground py-2.5 rounded-md font-semibold text-sm flex items-center justify-center gap-2"
                             >
-                              Start Decision Challenges
+                              Go to Homepage
                               <ArrowRight className="w-3.5 h-3.5" />
                             </button>
                             <button
@@ -428,10 +597,10 @@ No markdown fences.`;
                       {/* Options */}
                       {msg.options && msg.id === currentMessage?.id && (
                         <div className="mt-2 space-y-1.5">
-                          {msg.options.map((opt, i) => (
+                          {getMessageOptions(msg)?.map((opt, i) => (
                             <button
                               key={i}
-                              onClick={() => handleOptionClick(opt)}
+                              onClick={() => handleOptionClick(opt, i)}
                               className="w-full text-left px-3 py-2 rounded-md border border-border bg-card text-sm text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all"
                             >
                               {opt}
@@ -472,20 +641,20 @@ No markdown fences.`;
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative z-10 border-t border-border bg-card/80 backdrop-blur-sm px-4 py-3"
+            className="relative z-10 border-t border-border bg-card/85 backdrop-blur-sm px-4 py-3"
           >
             <div className="max-w-lg mx-auto flex gap-2">
               <input
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleTextSubmit()}
-                placeholder="Share your thoughts..."
+                placeholder={language === 'hi' ? "अपने विचार साझा करें..." : "Share your thoughts..."}
                 className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:border-primary focus:outline-none transition-colors"
                 autoFocus
               />
               <button
                 onClick={handleTextSubmit}
-                disabled={!userInput.trim()}
+                disabled={!userInput.trim() || typing}
                 className="w-9 h-9 rounded-md gradient-primary flex items-center justify-center disabled:opacity-40 transition-all"
               >
                 <Send className="w-4 h-4 text-primary-foreground" />
@@ -499,12 +668,12 @@ No markdown fences.`;
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="relative z-10 border-t border-border bg-card/80 backdrop-blur-sm px-4 py-3"
+            className="relative z-10 border-t border-border bg-card/85 backdrop-blur-sm px-4 py-3"
           >
             <div className="max-w-lg mx-auto text-center">
               <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5">
                 <Sparkles className="w-3 h-3" />
-                Your personalized action plan is ready above
+                {language === 'hi' ? "आपका व्यक्तिगत कार्य योजना ऊपर तैयार है" : "Your personalized action plan is ready above"}
               </p>
             </div>
           </motion.div>

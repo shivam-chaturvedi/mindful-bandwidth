@@ -11,6 +11,18 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      '/translate_api': {
+        target: 'https://translate.googleapis.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/translate_api/, ''),
+      },
+      '/translate_google': {
+        target: 'https://translate.google.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/translate_google/, ''),
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
