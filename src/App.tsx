@@ -21,6 +21,7 @@ import Community from "./pages/Community";
 import NotFound from "./pages/NotFound";
 import AppShell from "./components/AppShell";
 import Home from "./pages/Home";
+import TodaysReset from "./pages/TodaysReset";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="/game/3" element={<Game3Stress />} />
               <Route path="/game/4" element={<Game4Social />} />
               <Route path="/results" element={<Results />} />
+              <Route path="/todays-reset" element={<TodaysReset />} />
               <Route path="/interventions" element={<Interventions />} />
               <Route path="/checkin" element={<DailyCheckIn />} />
               <Route path="/breathing" element={<Breathing />} />

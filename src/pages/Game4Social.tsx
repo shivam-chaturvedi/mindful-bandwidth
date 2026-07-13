@@ -5,6 +5,7 @@ import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import ProgressBar from '@/components/ProgressBar';
 import FloatingShapes from '@/components/FloatingShapes';
+import Translate from '@/components/Translate';
 import { Check, Clock, Ban, Handshake } from 'lucide-react';
 
 const options = [
@@ -24,9 +25,8 @@ const Game4Social = () => {
     const option = options.find(o => o.id === id)!;
     setGameResponse('game4_social', id);
 
-    // Compute final scores
     const socialScore = option.score;
-    const financialStress = Math.round(40 + Math.random() * 30); // Simulated
+    const financialStress = Math.round(40 + Math.random() * 30);
     setScores({
       ...scores,
       socialSupport: socialScore,
@@ -49,10 +49,10 @@ const Game4Social = () => {
             className="text-center mb-6"
           >
             <h2 className="text-2xl font-bold text-foreground mb-2">
-              Social Decision
+              <Translate>Social Decision</Translate>
             </h2>
             <p className="text-muted-foreground text-sm">
-              You're overwhelmed with work. A friend asks for urgent help. What do you do?
+              <Translate>You're overwhelmed with work. A friend asks for urgent help. What do you do?</Translate>
             </p>
           </motion.div>
 
@@ -81,8 +81,8 @@ const Game4Social = () => {
                   <OptIcon className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <p className="font-semibold text-foreground text-sm">{opt.label}</p>
-                  <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                  <p className="font-semibold text-foreground text-sm"><Translate>{opt.label}</Translate></p>
+                  <p className="text-xs text-muted-foreground"><Translate>{opt.desc}</Translate></p>
                 </div>
               </motion.button>
               );

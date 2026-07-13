@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Home, MessageSquare, Wind, ClipboardList, Target, Dumbbell, Users, BarChart3, ArrowLeft, Languages, RefreshCw } from 'lucide-react';
+import { Home, MessageSquare, Wind, ClipboardList, Sparkles, BarChart3, ArrowLeft, Languages, RefreshCw } from 'lucide-react';
 import { useBandwidth } from '@/context/BandwidthContext';
 import Translate from '@/components/Translate';
 
@@ -8,7 +8,7 @@ const navItems = [
   { to: '/home', label: 'Home', icon: Home },
   { to: '/results', label: 'Insights', icon: BarChart3 },
   { to: '/ai-coach', label: 'Coach', icon: MessageSquare },
-  { to: '/interventions', label: 'Plan', icon: Target },
+  { to: '/todays-reset', label: 'Reset', icon: Sparkles },
 ];
 
 const AppShell = () => {
@@ -38,7 +38,7 @@ const AppShell = () => {
   }, []);
 
   // Show navigation links and bottom nav only on main navigation routes
-  const isNavRoute = ['/home', '/results', '/ai-coach', '/interventions'].includes(location.pathname);
+  const isNavRoute = ['/home', '/results', '/ai-coach', '/todays-reset'].includes(location.pathname);
   
   // Show back button on all routes except Onboarding (/) and Home (/home)
   const showBackBtn = !['/', '/home'].includes(location.pathname);

@@ -56,11 +56,11 @@ function tryParseJson<T = unknown>(text: string): T | null {
 }
 
 const domainLabels: Record<string, string> = {
-  stress: 'stress management',
-  selfControl: 'self-control & impulse regulation',
-  timeManagement: 'time management & planning',
-  financialThreat: 'financial pressure',
-  socialConnectedness: 'social connection',
+  stress: 'Stress Regulation',
+  selfControl: 'Self-Control',
+  timeManagement: 'Time Management',
+  financialThreat: 'Financial Security',
+  socialConnectedness: 'Social Connection',
 };
 
 async function translateText(text: string, to: string, from = 'auto'): Promise<string> {
@@ -120,6 +120,14 @@ const AICoach = () => {
   const [translating, setTranslating] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const [userName, setUserName] = useState('');
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('user_name');
+      if (stored) setUserName(stored);
+    } catch {}
+  }, []);
+
   const quizScores = (() => {
     let answers = gameResponses.quizAnswers || {};
     if (!answers || Object.keys(answers).length === 0) {
@@ -137,14 +145,67 @@ const AICoach = () => {
   // Build a context string from scores
   const scoresContext = JSON.stringify(quizScores);
 
-  // Ask Gemini for a follow-up question with options
+  const isMockMode = !GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here';
+
+  // Ask Gemini or Mock for the first greeting
   const aiGenerateFirstQuestion = async (): Promise<Message[] | null> => {
+    if (isMockMode) {
+      const mockOptionsMap: Record<string, string[]> = {
+        timeManagement: [
+          "I rush and make mistakes when tasks pile up.",
+          "I procrastinate on high-effort assignments.",
+          "I find it hard to stick to a daily schedule.",
+          "I get distracted and lose track of time."
+        ],
+        selfControl: [
+          "I check my phone/social media constantly.",
+          "I spend money impulsively when stressed.",
+          "I put off studying for instant gratification.",
+          "I have trouble staying focused on boring tasks."
+        ],
+        stress: [
+          "My mind goes blank and I can't think clearly.",
+          "I carry physical tension in my neck/shoulders.",
+          "I get highly anxious and overwhelmed quickly.",
+          "I struggle to wind down or fall asleep."
+        ],
+        socialConnectedness: [
+          "I isolate myself from friends and family.",
+          "I feel lonely but avoid reaching out to others.",
+          "I say yes to everything and get overwhelmed.",
+          "I struggle to establish healthy boundaries."
+        ],
+        financialThreat: [
+          "I worry constantly about daily expenses.",
+          "I avoid checking my bank accounts out of fear.",
+          "I feel stressed whenever I have to pay bills.",
+          "I feel like I don't have a financial buffer."
+        ]
+      };
+
+      const opts = mockOptionsMap[weakestDomain] || mockOptionsMap.stress;
+      return [
+        {
+          id: 'intro',
+          role: 'ai',
+          text: `Hello ${userName ? userName + '! ' : ''}I am your AI Bandwidth Coach. Based on your profile, your weakest reserve right now is **${domainLabels[weakestDomain]}** (scored ${quizScores[weakestDomain] || 0}/100). Under cognitive scarcity, our brains naturally tunnel and deplete our bandwidth. Let's work together to restore it.`
+        },
+        {
+          id: 'q1',
+          role: 'ai',
+          text: `To start, which of these patterns fits you best when your **${domainLabels[weakestDomain]}** is taxed?`,
+          options: opts
+        }
+      ];
+    }
+
     if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') {
       setErrorMsg('Please configure your Gemini API Key in the .env file (VITE_GEMINI_API_KEY) to start chatting with the Coach.');
       return null;
     }
     const weak = sorted[0];
     const systemPrompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
+The user's name is ${userName || 'Participant'}. Address them by name in your intro greeting.
 The user just completed an assessment with these scores (0-100, higher = better): ${scoresContext}.
 Their weakest area is "${domainLabels[weak[0]]}" at ${weak[1]}/100.
 
@@ -171,6 +232,33 @@ Make options first-person statements (e.g., "I feel...") relevant to ${domainLab
   };
 
   const aiGenerateFollowUp = async (history: Message[]): Promise<Message | null> => {
+    if (isMockMode) {
+      const targetPhase = phase + 1;
+      if (targetPhase === 2) {
+        return {
+          id: `ai-${Date.now()}`,
+          role: 'ai',
+          text: `I completely understand. That's a classic response when your **${domainLabels[weakestDomain]}** capacity is running low. Could you tell me in your own words how that affects your daily decisions or academic performance?`
+        };
+      }
+      if (targetPhase === 3) {
+        const secondWeakest = sorted[1]?.[0] || 'stress';
+        const secondWeakLabel = domainLabels[secondWeakest] || secondWeakest;
+        return {
+          id: `ai-${Date.now()}`,
+          role: 'ai',
+          text: `Thank you for sharing that. It makes absolute sense. Often, a shortage in one domain spills over and taxes another. Do you notice this also impacting your **${secondWeakLabel}** (scored ${quizScores[secondWeakest] || 0}/100)?`,
+          options: [
+            "Yes, they are definitely linked",
+            "Sometimes when pressure gets high",
+            "No, they feel completely separate",
+            "I'm not sure"
+          ]
+        };
+      }
+      return null;
+    }
+
     if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') return null;
     const contents = buildGeminiContents(history);
     const targetPhase = phase + 1;
@@ -212,10 +300,32 @@ If the question should be open-ended, set options to null. Do not include markdo
   };
 
   const aiGenerateClosing = async (history: Message[]): Promise<Message | null> => {
+    if (isMockMode) {
+      let shown: string[] = [];
+      try {
+        const storedShown = localStorage.getItem('ai_coach_shown_solutions');
+        if (storedShown) shown = JSON.parse(storedShown);
+      } catch {}
+
+      const solutions = getRecommendedSolutions(quizScores, undefined, shown);
+
+      try {
+        const nextShown = Array.from(new Set([...shown, ...solutions.map(s => s.id)]));
+        localStorage.setItem('ai_coach_shown_solutions', JSON.stringify(nextShown));
+      } catch {}
+
+      return {
+        id: 'solutions',
+        role: 'ai',
+        text: `Thank you. I have analyzed your responses. Under cognitive scarcity, the brain tends to prioritize immediate threats over long-term stability. To help you rebuild your **${domainLabels[weakestDomain]}** reserves, I have selected these tailored strategies from the content bank. Feel free to keep chatting in this session!`,
+        solutionCards: solutions
+      };
+    }
+
     if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') return null;
     const contents = buildGeminiContents(history);
     const solutions = getRecommendedSolutions(quizScores);
-    
+
     const systemPrompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
 Scores: ${scoresContext}
 
@@ -234,6 +344,47 @@ Do not include markdown code block fences (like \`\`\`json) in your response, ju
     } catch (e) {
       console.error('Gemini closing failed', e);
       setErrorMsg('Failed to communicate with Gemini. Please verify your API key and connection details in the .env file.');
+      return null;
+    }
+  };
+
+  const aiGenerateOpenChat = async (history: Message[]): Promise<Message | null> => {
+    if (isMockMode) {
+      return {
+        id: `ai-${Date.now()}`,
+        role: 'ai',
+        text: `That is a very valid concern. When dealing with challenges in **${domainLabels[weakestDomain]}**, cognitive fatigue is highly common. Have you checked out the rotating exercises on your **Today's Reset** dashboard feature to restore some focus?`,
+        options: [
+          "Tell me about Today's Reset",
+          "How can I rebuild my self-control?",
+          "Let's look at another area"
+        ]
+      };
+    }
+
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') return null;
+    const contents = buildGeminiContents(history);
+    const systemPrompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
+Scores: ${scoresContext}
+
+The user has completed the assessment and we are in an open coaching session. Respond to the user's last message with supportive, practical advice based on their profile.
+Keep your response short (2-3 sentences). Offer 2-3 short quick-reply options for them in the JSON response.
+
+Reply ONLY in JSON in this exact shape:
+{"message":"<your response text, may use **bold**>","options":["opt1","opt2","opt3"] or null}`;
+
+    try {
+      const text = await callGemini(GEMINI_API_KEY, contents, systemPrompt);
+      const json = tryParseJson<{ message: string; options: string[] | null }>(text);
+      if (!json?.message) throw new Error('Invalid JSON response structure');
+      return {
+        id: `ai-${Date.now()}`,
+        role: 'ai',
+        text: json.message,
+        options: Array.isArray(json.options) ? json.options.slice(0, 3) : undefined,
+      };
+    } catch (e) {
+      console.error("Gemini open chat failed", e);
       return null;
     }
   };
@@ -385,6 +536,19 @@ Do not include markdown code block fences (like \`\`\`json) in your response, ju
         }
         setMessages(prev => [...prev, nextMsg!]);
         setPhase(4);
+      }
+    } else if (phase >= 4) {
+      nextMsg = await aiGenerateOpenChat(newMessages);
+      if (nextMsg) {
+        if (language === 'hi') {
+          const transText = await translateText(nextMsg.text, 'hi');
+          nextMsg.translatedText = { hi: transText };
+          if (nextMsg.options) {
+            const transOpts = await translateOptions(nextMsg.options, 'hi');
+            nextMsg.translatedOptions = { hi: transOpts };
+          }
+        }
+        setMessages(prev => [...prev, nextMsg!]);
       }
     }
     setTyping(false);

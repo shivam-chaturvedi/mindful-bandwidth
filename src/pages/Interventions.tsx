@@ -1,177 +1,222 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
 import Translate from '@/components/Translate';
-import { ArrowRight, Target, ListChecks, CalendarDays, Check } from 'lucide-react';
-
-const interventions: Record<string, { title: string; desc: string; steps: string[]; icon: any; color: string }> = {
-  planning: {
-    title: 'Goal Breakdown',
-    desc: 'Break overwhelming tasks into 3 manageable steps',
-    steps: ['Pick 1 task that feels overwhelming', 'Break it into exactly 3 small steps', 'Schedule each step in your calendar'],
-    icon: ListChecks,
-    color: 'bg-sky',
-  },
-  impulseControl: {
-    title: 'Decision Journal',
-    desc: 'Pause before big choices and write a quick pros & cons',
-    steps: ['When facing a decision, pause for 30 seconds', 'Write 2 pros and 2 cons', 'Ask: "Will future me thank me?"'],
-    icon: Target,
-    color: 'bg-sunshine',
-  },
-  stressRegulation: {
-    title: 'Stress Mapping',
-    desc: 'Identify your top 3 stressors and one action for each',
-    steps: ['List your top 3 sources of stress right now', 'For each, write one tiny action you can take', 'Do the easiest one today'],
-    icon: CalendarDays,
-    color: 'bg-mint',
-  },
-  socialSupport: {
-    title: 'Support Network Map',
-    desc: 'Identify people who can help and reach out to one',
-    steps: ['List 3 people you trust', 'Identify one thing each could help with', 'Message one of them today'],
-    icon: Target,
-    color: 'bg-blush',
-  },
-  financialStress: {
-    title: 'Financial Buffer Plan',
-    desc: 'Create a small emergency buffer to reduce worry',
-    steps: ['Track spending for 3 days', 'Find one expense to reduce this week', 'Set aside even a small amount'],
-    icon: CalendarDays,
-    color: 'bg-lavender/40',
-  },
-};
+import { getSolutionById, Solution } from '@/lib/solutions';
+import { ArrowRight, Target, Trash2, CalendarDays, CheckCircle2, Bookmark } from 'lucide-react';
 
 const Interventions = () => {
-  const { scores, setCommitmentIntervention } = useBandwidth();
+  const { language } = useBandwidth();
   const navigate = useNavigate();
-  const [committed, setCommitted] = useState(false);
+  const [pinnedSolutions, setPinnedSolutions] = useState<Solution[]>([]);
+  const [completedSteps, setCompletedSteps] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = localStorage.getItem('action_plan_completed_steps');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
 
-  // Find lowest area
-  const scoreEntries = [
-    { key: 'planning', score: scores.planning },
-    { key: 'impulseControl', score: scores.impulseControl },
-    { key: 'stressRegulation', score: scores.stressRegulation },
-    { key: 'socialSupport', score: scores.socialSupport },
-    { key: 'financialStress', score: 100 - scores.financialStress },
-  ];
-  const lowest = scoreEntries.reduce((a, b) => a.score < b.score ? a : b);
-  const intervention = interventions[lowest.key];
-  const Icon = intervention.icon;
+  // Load pinned solutions from localStorage
+  useEffect(() => {
+    const loadPinned = () => {
+      try {
+        const stored = localStorage.getItem('pinned_solutions');
+        if (stored) {
+          const ids: string[] = JSON.parse(stored);
+          if (Array.isArray(ids)) {
+            const sols = ids
+              .map(id => getSolutionById(id))
+              .filter((s): s is Solution => !!s);
+            setPinnedSolutions(sols);
+            return;
+          }
+        }
+      } catch {}
+      setPinnedSolutions([]);
+    };
 
-  const handleCommit = () => {
-    setCommitmentIntervention(lowest.key);
-    setCommitted(true);
+    loadPinned();
+  }, []);
+
+  const handleUnpin = (solId: string) => {
+    const nextPinned = pinnedSolutions.filter(s => s.id !== solId);
+    setPinnedSolutions(nextPinned);
+    try {
+      localStorage.setItem('pinned_solutions', JSON.stringify(nextPinned.map(s => s.id)));
+    } catch {}
+  };
+
+  const toggleStep = (solId: string, stepIdx: number) => {
+    const key = `${solId}-${stepIdx}`;
+    const next = { ...completedSteps, [key]: !completedSteps[key] };
+    setCompletedSteps(next);
+    try {
+      localStorage.setItem('action_plan_completed_steps', JSON.stringify(next));
+    } catch {}
+  };
+
+  const getCategoryColor = (cat: string) => {
+    switch (cat) {
+      case 'stress': return 'bg-destructive/10 text-destructive border-destructive/20';
+      case 'selfControl': return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
+      case 'timeManagement': return 'bg-primary/10 text-primary border-primary/20';
+      case 'financialThreat': return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
+      case 'socialConnectedness': return 'bg-success/10 text-success border-success/20';
+      default: return 'bg-muted text-muted-foreground border-border';
+    }
   };
 
   return (
     <PageTransition>
       <div className="min-h-screen flex flex-col items-center px-4 py-8 relative">
         <FloatingShapes />
-        <div className="relative z-10 w-full max-w-md">
+        <div className="relative z-10 w-full max-w-lg mx-auto">
+          
+          {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className="mb-8"
           >
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wider rounded-sm mb-3">
-              <Target className="w-3 h-3" /> <Translate>Action Plan</Translate>
+              <Target className="w-3 h-3" /> <Translate>My Action Plan</Translate>
             </div>
             <h1 className="text-2xl font-bold text-foreground mb-1">
-              <Translate>Your Recommended Action</Translate>
+              <Translate>Your Personalised Strategies</Translate>
             </h1>
             <p className="text-muted-foreground text-sm">
-              <Translate>Based on your results, focus on one thing.</Translate>
+              <Translate>Evidence-based interventions pinned from your AI Coach discussions.</Translate>
             </p>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="glass-card-elevated p-6 mb-6"
-          >
-            <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center mb-4">
-              <Icon className="w-5 h-5 text-primary" />
-            </div>
-            <h2 className="text-lg font-bold text-foreground mb-2">
-              <Translate>{intervention.title}</Translate>
-            </h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              <Translate>{intervention.desc}</Translate>
-            </p>
-
-            <div className="space-y-3">
-              {intervention.steps.map((step, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 + i * 0.1 }}
-                  className="flex items-start gap-3"
-                >
-                  <div className="w-6 h-6 rounded-sm bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-[11px] font-bold text-primary">{i + 1}</span>
-                  </div>
-                  <p className="text-sm text-foreground">
-                    <Translate>{step}</Translate>
-                  </p>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-
-          {!committed ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="glass-card p-6 text-center"
-            >
-              <p className="text-sm font-medium text-foreground mb-4">
-                <Translate>"I will try this for the next 5 days"</Translate>
-              </p>
-              <div className="flex gap-2 justify-center">
-                <button
-                  onClick={handleCommit}
-                  className="gradient-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all"
-                >
-                  <Translate>Yes, I'm in</Translate>
-                </button>
-                <button
-                  onClick={() => navigate('/home')}
-                  className="px-5 py-2.5 rounded-md border border-border bg-card text-foreground font-medium text-sm hover:border-primary/30 transition-all"
-                >
-                  <Translate>Maybe later</Translate>
-                </button>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="glass-card-elevated p-6 text-center"
-            >
-              <div className="w-12 h-12 rounded-md bg-success/10 flex items-center justify-center mx-auto mb-4">
-                <Check className="w-6 h-6 text-success" />
-              </div>
-              <h3 className="text-lg font-bold text-foreground mb-2">
-                <Translate>You're committed</Translate>
-              </h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                <Translate>We'll check in with you daily.</Translate>
-              </p>
-              <button
-                onClick={() => navigate('/home')}
-                className="gradient-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold text-sm shadow-sm transition-all"
+          <AnimatePresence mode="wait">
+            {pinnedSolutions.length === 0 ? (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="glass-card-elevated p-8 text-center"
               >
-                <Translate>Back to Home</Translate>
-              </button>
-            </motion.div>
-          )}
+                <div className="w-12 h-12 mx-auto mb-4 rounded-md bg-muted flex items-center justify-center text-muted-foreground">
+                  <Bookmark className="w-6 h-6" />
+                </div>
+                <h2 className="text-lg font-bold text-foreground mb-2">
+                  <Translate>No pinned strategies yet</Translate>
+                </h2>
+                <p className="text-sm text-muted-foreground mb-6 max-w-xs mx-auto">
+                  <Translate>Discuss your stressors with your AI Coach to find personalized strategies, then pin them here to build your actionable plan.</Translate>
+                </p>
+                <button
+                  onClick={() => navigate('/ai-coach')}
+                  className="gradient-primary text-primary-foreground px-6 py-2.5 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 mx-auto"
+                >
+                  <Translate>Talk to AI Coach</Translate>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="list"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-4"
+              >
+                {pinnedSolutions.map((sol, idx) => {
+                  const totalSteps = sol.steps.length;
+                  const completedCount = sol.steps.reduce((acc, _, i) => acc + (completedSteps[`${sol.id}-${i}`] ? 1 : 0), 0);
+                  const progressPct = Math.round((completedCount / totalSteps) * 100);
+
+                  return (
+                    <motion.div
+                      key={sol.id}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                      className="glass-card-elevated p-6 relative overflow-hidden"
+                    >
+                      {/* Top labels */}
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border ${getCategoryColor(sol.category)}`}>
+                            <Translate>{sol.category}</Translate>
+                          </span>
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <CalendarDays className="w-3 h-3" /> <Translate>{sol.duration}</Translate>
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleUnpin(sol.id)}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Remove from plan"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <h2 className="text-lg font-bold text-foreground mb-1">
+                        <Translate>{sol.title}</Translate>
+                      </h2>
+                      <p className="text-[10px] text-muted-foreground mb-3 leading-relaxed">
+                        <Translate>{sol.source}</Translate>
+                      </p>
+                      <p className="text-xs text-foreground mb-5 leading-relaxed bg-muted/30 p-3 rounded-md border border-border/40">
+                        <Translate>{sol.description}</Translate>
+                      </p>
+
+                      {/* Progress bar */}
+                      <div className="mb-5">
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground mb-1.5">
+                          <span><Translate>Progress</Translate></span>
+                          <span>{completedCount}/{totalSteps} <Translate>steps completed</Translate> ({progressPct}%)</span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full gradient-primary rounded-full transition-all duration-300"
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Steps checklist */}
+                      <div className="space-y-2">
+                        {sol.steps.map((step, i) => {
+                          const isDone = !!completedSteps[`${sol.id}-${i}`];
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => toggleStep(sol.id, i)}
+                              className={`w-full text-left p-3 rounded-md border flex items-start gap-3 transition-all ${
+                                isDone
+                                  ? 'border-success/30 bg-success/5 text-muted-foreground line-through'
+                                  : 'border-border bg-card hover:border-primary/30 text-foreground'
+                              }`}
+                            >
+                              <div className="flex-shrink-0 mt-0.5">
+                                {isDone ? (
+                                  <CheckCircle2 className="w-4 h-4 text-success fill-success/15" />
+                                ) : (
+                                  <div className="w-4 h-4 rounded-sm border border-border bg-background" />
+                                )}
+                              </div>
+                              <span className="text-xs font-medium leading-normal">
+                                <Translate>{step}</Translate>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </PageTransition>

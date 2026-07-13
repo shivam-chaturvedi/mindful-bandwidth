@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
-import { Users, Flame, MessageCircle, Target, Calendar, Heart, ClipboardList, BookOpen, Brain, Zap, Handshake } from 'lucide-react';
+import Translate from '@/components/Translate';
+import { Users, Flame, MessageCircle, Target, Calendar, Heart, BookOpen, Brain, Zap, Handshake } from 'lucide-react';
 
 const weeklyFocus = [
   { week: 1, label: 'Planning', icon: BookOpen, active: true },
@@ -27,8 +28,8 @@ const Community = () => {
         <FloatingShapes />
         <div className="relative z-10 w-full max-w-lg mx-auto">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-foreground">Bandwidth Challenge</h1>
-            <p className="text-xs text-muted-foreground">4-week peer-supported program</p>
+            <h1 className="text-2xl font-bold text-foreground"><Translate>Bandwidth Challenge</Translate></h1>
+            <p className="text-xs text-muted-foreground"><Translate>4-week peer-supported program</Translate></p>
           </div>
 
           {!joined ? (
@@ -42,13 +43,13 @@ const Community = () => {
                 </div>
                 <p className="text-3xl font-bold text-foreground mb-1">1,284</p>
               <p className="text-sm text-muted-foreground mb-6">
-                students are improving their focus right now
+                <Translate>students are improving their focus right now</Translate>
               </p>
               <button
                 onClick={() => setJoined(true)}
                   className="gradient-primary text-primary-foreground px-6 py-2.5 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all"
               >
-                Join the 4-week Challenge
+                <Translate>Join the 4-week Challenge</Translate>
               </button>
             </motion.div>
           ) : (
@@ -63,12 +64,12 @@ const Community = () => {
                   <Flame className="w-5 h-5 text-warm" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-foreground">Day 3 / 28</p>
+                  <p className="text-sm font-semibold text-foreground"><Translate>Day</Translate> 3 / 28</p>
                   <div className="h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
                     <div className="h-full gradient-warm rounded-full" style={{ width: '10.7%' }} />
                   </div>
                 </div>
-                <span className="text-xs font-semibold text-warm flex items-center gap-1"><Flame className="w-3 h-3" />3 streak</span>
+                <span className="text-xs font-semibold text-warm flex items-center gap-1"><Flame className="w-3 h-3" />3 <Translate>streak</Translate></span>
               </motion.div>
 
               {/* Weekly Focus */}
@@ -79,7 +80,7 @@ const Community = () => {
                 className="glass-card p-4 mb-4"
               >
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" /> WEEKLY FOCUS
+                  <Calendar className="w-3 h-3" /> <Translate>WEEKLY FOCUS</Translate>
                 </p>
                 <div className="grid grid-cols-4 gap-2">
                   {weeklyFocus.map(w => {
@@ -93,7 +94,7 @@ const Community = () => {
                       >
                         <Icon className={`w-4 h-4 mx-auto ${w.active ? 'text-primary' : 'text-muted-foreground'}`} />
                         <p className={`text-[10px] font-semibold mt-1 ${w.active ? 'text-primary' : 'text-muted-foreground'}`}>
-                          Wk {w.week}
+                          <Translate>Wk</Translate> {w.week}
                         </p>
                       </div>
                     );
@@ -109,10 +110,10 @@ const Community = () => {
                 className="glass-card p-4 mb-4 border-l-4 border-l-primary"
               >
                 <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-1 flex items-center gap-1">
-                  <Target className="w-3 h-3" /> WEEKLY REFLECTION
+                  <Target className="w-3 h-3" /> <Translate>WEEKLY REFLECTION</Translate>
                 </p>
                 <p className="text-sm font-medium text-foreground">
-                  "Did you make one better decision this week?"
+                  "<Translate>Did you make one better decision this week?</Translate>"
                 </p>
               </motion.div>
 
@@ -124,7 +125,7 @@ const Community = () => {
                 className="mb-4"
               >
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1">
-                  <MessageCircle className="w-3 h-3" /> COMMUNITY FEED
+                  <MessageCircle className="w-3 h-3" /> <Translate>COMMUNITY FEED</Translate>
                 </p>
                 <div className="space-y-2">
                   {posts.map((post, i) => (
@@ -135,7 +136,7 @@ const Community = () => {
                       transition={{ delay: 0.4 + i * 0.06 }}
                       className="glass-card p-3"
                     >
-                      <p className="text-sm text-foreground">{post.text}</p>
+                      <p className="text-sm text-foreground"><Translate>{post.text}</Translate></p>
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-[10px] text-muted-foreground">{post.time}</span>
                         <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Heart className="w-3 h-3" />{post.likes}</span>

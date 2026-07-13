@@ -5,6 +5,7 @@ import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import ProgressBar from '@/components/ProgressBar';
 import FloatingShapes from '@/components/FloatingShapes';
+import Translate from '@/components/Translate';
 import { ArrowRight, Coins, Clock } from 'lucide-react';
 
 const choices = [
@@ -70,10 +71,10 @@ const Game2Impulse = () => {
             className="text-center mb-6"
           >
             <h2 className="text-2xl font-bold text-foreground mb-2">
-              Instant vs Future
+              <Translate>Instant vs Future</Translate>
             </h2>
             <p className="text-muted-foreground text-sm">
-              Choose what you'd prefer. The timer adds pressure!
+              <Translate>Choose what you'd prefer. The timer adds pressure!</Translate>
             </p>
           </motion.div>
 
@@ -102,7 +103,7 @@ const Game2Impulse = () => {
               >
                 <Coins className="w-8 h-8 mx-auto mb-3 text-warm group-hover:scale-110 transition-transform" />
                 <p className="font-extrabold text-foreground text-lg">{choice.now}</p>
-                <p className="text-xs text-muted-foreground mt-1">Get it now</p>
+                <p className="text-xs text-muted-foreground mt-1"><Translate>Get it now</Translate></p>
               </button>
 
               <button
@@ -112,7 +113,7 @@ const Game2Impulse = () => {
               >
                 <Clock className="w-8 h-8 mx-auto mb-3 text-primary group-hover:scale-110 transition-transform" />
                 <p className="font-extrabold text-foreground text-lg">{choice.later}</p>
-                <p className="text-xs text-muted-foreground mt-1">Wait for more</p>
+                <p className="text-xs text-muted-foreground mt-1"><Translate>Wait for more</Translate></p>
               </button>
             </motion.div>
           </AnimatePresence>

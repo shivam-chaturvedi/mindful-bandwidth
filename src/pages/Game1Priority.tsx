@@ -5,6 +5,7 @@ import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import ProgressBar from '@/components/ProgressBar';
 import FloatingShapes from '@/components/FloatingShapes';
+import Translate from '@/components/Translate';
 import { calculateQuizScores } from '@/lib/quizData';
 import {
   GripVertical, ArrowRight, FileText, Users as UsersIcon, Sparkles, BookOpen, Coffee,
@@ -91,7 +92,6 @@ const challenges: Challenge[] = [
 ];
 
 function pickChallenge(): Challenge {
-  // Prefer weakest domain from stored quiz scores
   let scores: Record<string, number> | null = null;
   try {
     const stored = localStorage.getItem('quizScores');
@@ -104,7 +104,6 @@ function pickChallenge(): Challenge {
     } catch {}
   }
 
-  // Rotate to avoid the same one shown last time
   let lastId = '';
   try { lastId = localStorage.getItem('lastChallengeId') || ''; } catch {}
 
@@ -142,7 +141,6 @@ const Game1Priority = () => {
 
   const handleNext = () => {
     setGameResponse(`practice_${challenge.id}`, order);
-    // Generic scoring: top of list = priority
     const planningScore = 70;
     setScores({ ...scores, planning: planningScore });
     navigate('/game/2');
@@ -164,10 +162,10 @@ const Game1Priority = () => {
               <Sparkles className="w-6 h-6 text-primary" />
             </div>
             <h2 className="text-xl font-extrabold text-foreground mb-2">
-              {challenge.title}
+              <Translate>{challenge.title}</Translate>
             </h2>
             <p className="text-muted-foreground text-sm">
-              {challenge.prompt}
+              <Translate>{challenge.prompt}</Translate>
             </p>
           </motion.div>
 
@@ -200,7 +198,9 @@ const Game1Priority = () => {
                     <GripVertical className="w-4 h-4" />
                   </div>
                   <TaskIcon className="w-5 h-5 text-primary" />
-                  <span className="text-sm font-semibold text-foreground flex-1">{task.label}</span>
+                  <span className="text-sm font-semibold text-foreground flex-1">
+                    <Translate>{task.label}</Translate>
+                  </span>
                 </motion.div>
               );
             })}
@@ -211,7 +211,7 @@ const Game1Priority = () => {
               onClick={handleNext}
               className="gradient-primary text-primary-foreground px-8 py-3.5 rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-200 inline-flex items-center gap-2"
             >
-              Next Challenge
+              <Translate>Next Challenge</Translate>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

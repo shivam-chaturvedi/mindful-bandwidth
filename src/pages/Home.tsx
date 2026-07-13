@@ -1,34 +1,65 @@
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
+import { calculateQuizScores } from '@/lib/quizData';
 import PageTransition from '@/components/PageTransition';
 import Translate from '@/components/Translate';
 import {
-  MessageSquare, Target, BarChart3, TrendingUp, ArrowRight,
+  MessageSquare, Wind, ClipboardList, BarChart3, TrendingUp, ArrowRight,
+  Sparkles
 } from 'lucide-react';
-import { calculateQuizScores } from '@/lib/quizData';
 
 const features = [
   { to: '/ai-coach', icon: MessageSquare, title: 'AI Coach', desc: 'Talk through your patterns' },
   { to: '/results', icon: BarChart3, title: 'Your Insights', desc: 'Bandwidth profile & charts' },
-  { to: '/interventions', icon: Target, title: 'Action Plan', desc: 'CSI-Y recommended steps' },
-  // Hidden for now to simplify site complexity:
-  // { to: '/checkin', title: 'Daily Check-in', desc: 'Track your bandwidth' },
-  // { to: '/breathing', title: 'Breathing Tool', desc: '60-second reset' },
+  { to: '/todays-reset', icon: Sparkles, title: "Today's Reset", desc: 'Personalised resets & quick relief' },
+  { to: '/checkin', icon: ClipboardList, title: 'Daily Check-in', desc: 'Track your bandwidth' },
+  { to: '/breathing', icon: Wind, title: 'Breathing Tool', desc: '60-second reset' },
 ];
 
 const Home = () => {
   const navigate = useNavigate();
   const { gameResponses } = useBandwidth();
-  const quizScores = calculateQuizScores(gameResponses.quizAnswers || {});
-  const hasQuiz = Object.keys(gameResponses.quizAnswers || {}).length > 0;
 
-  const overall = hasQuiz
-    ? Math.round(
-        (quizScores.stress + quizScores.selfControl + quizScores.timeManagement +
-          quizScores.financialThreat + quizScores.socialConnectedness) / 5
-      )
-    : null;
+  const [userName, setUserName] = useState('');
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('user_name');
+      if (stored) setUserName(stored);
+    } catch {}
+  }, []);
+
+  const quizScores = useMemo(() => {
+    let answers = gameResponses.quizAnswers || {};
+    if (!answers || typeof answers !== 'object' || Object.keys(answers).length === 0) {
+      try {
+        const stored = localStorage.getItem('quizAnswers');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === 'object') answers = parsed;
+        }
+      } catch { /* ignore */ }
+    }
+    return calculateQuizScores(answers && typeof answers === 'object' ? answers : {});
+  }, [gameResponses]);
+
+  const hasQuiz = useMemo(() => {
+    try {
+      const stored = localStorage.getItem('quizAnswers');
+      return !!stored || Object.keys(gameResponses.quizAnswers || {}).length > 0;
+    } catch {
+      return Object.keys(gameResponses.quizAnswers || {}).length > 0;
+    }
+  }, [gameResponses]);
+
+  const overall = useMemo(() => {
+    if (!hasQuiz) return null;
+    return Math.round(
+      (quizScores.stress + quizScores.selfControl + quizScores.timeManagement +
+        quizScores.financialThreat + quizScores.socialConnectedness) / 5
+    );
+  }, [hasQuiz, quizScores]);
 
   return (
     <PageTransition>
@@ -42,7 +73,7 @@ const Home = () => {
             <Translate>Dashboard</Translate>
           </p>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1">
-            <Translate>Welcome back</Translate>
+            <Translate>Welcome back</Translate>{userName ? `, ${userName}` : ''}!
           </h1>
           <p className="text-sm text-muted-foreground">
             <Translate>Your space to understand and rebuild cognitive bandwidth.</Translate>

@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
-import Translate from '@/components/Translate';
+import Translate, { getTranslation } from '@/components/Translate';
 import { allQuestions, shuffleQuestions, getScaleOptions, quizCategories, calculateQuizScores } from '@/lib/quizData';
 import { ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 const MIN_REQUIRED = 15;
 
@@ -15,8 +16,77 @@ const Quiz = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [direction, setDirection] = useState(1);
-  const { setGameResponse } = useBandwidth();
+  const { setGameResponse, language } = useBandwidth();
   const navigate = useNavigate();
+
+  // User details state
+  const [formName, setFormName] = useState(() => {
+    try {
+      return localStorage.getItem('user_name') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [formEmail, setFormEmail] = useState(() => {
+    try {
+      return localStorage.getItem('user_email') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [formSubmitted, setFormSubmitted] = useState(() => {
+    try {
+      return !!localStorage.getItem('user_name');
+    } catch {
+      return false;
+    }
+  });
+  const [formError, setFormError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName.trim()) {
+      setFormError('Please enter your name.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formEmail)) {
+      setFormError('Please enter a valid email address.');
+      return;
+    }
+
+    setFormError('');
+    setIsSubmitting(true);
+
+    try {
+      if (supabase) {
+        const { error } = await supabase
+          .from('users')
+          .insert([{ name: formName.trim(), email: formEmail.trim() }]);
+        if (error) {
+          console.error('Supabase user insert failed:', error);
+        }
+      }
+
+      localStorage.setItem('user_name', formName.trim());
+      localStorage.setItem('user_email', formEmail.trim());
+      setFormSubmitted(true);
+    } catch (err) {
+      console.error('Supabase submit error:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Pre-fetch translations for all quiz questions when language changes
+  useEffect(() => {
+    if (language !== 'en' && shuffled.length > 0) {
+      shuffled.forEach((q) => {
+        getTranslation(q.text, language).catch(() => {});
+      });
+    }
+  }, [language, shuffled]);
 
   // Overwrite previous quiz results on a fresh quiz start
   useEffect(() => {
@@ -42,14 +112,20 @@ const Quiz = () => {
 
   const handleAnswer = useCallback((value: number) => {
     if (!question) return;
-    setAnswers(prev => ({ ...prev, [question.id]: value }));
+    const newAnswers = { ...answers, [question.id]: value };
+    setAnswers(newAnswers);
+    const isLastQuestion = currentIndex === shuffled.length - 1;
+    const nowAllAnswered = Object.keys(newAnswers).length === shuffled.length;
     setTimeout(() => {
-      if (currentIndex < shuffled.length - 1) {
-        setDirection(1);
-        setCurrentIndex(prev => prev + 1);
+      if (nowAllAnswered || isLastQuestion) {
+        // All questions answered (or answered last one) — go straight to results
+        // We'll trigger finish via a flag; use the updated answers
+        return;
       }
+      setDirection(1);
+      setCurrentIndex(prev => prev + 1);
     }, 250);
-  }, [question, currentIndex, shuffled.length]);
+  }, [question, currentIndex, shuffled.length, answers]);
 
   const goBack = () => {
     if (currentIndex > 0) {
@@ -69,7 +145,18 @@ const Quiz = () => {
     setGameResponse('quizAnswers', answers);
     try {
       localStorage.setItem('quizAnswers', JSON.stringify(answers));
-      localStorage.setItem('quizScores', JSON.stringify(calculateQuizScores(answers)));
+      const scores = calculateQuizScores(answers);
+      localStorage.setItem('quizScores', JSON.stringify(scores));
+      
+      const storedHistory = localStorage.getItem('quiz_scores_history');
+      const history = storedHistory ? JSON.parse(storedHistory) : [];
+      history.push({
+        date: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+        timestamp: Date.now(),
+        scores,
+        overall: Math.round((scores.stress + scores.selfControl + scores.timeManagement + scores.financialThreat + scores.socialConnectedness) / 5)
+      });
+      localStorage.setItem('quiz_scores_history', JSON.stringify(history));
     } catch {}
     navigate('/quiz-results');
   };
@@ -77,6 +164,91 @@ const Quiz = () => {
   const allAnswered = Object.keys(answers).length === shuffled.length;
   const answeredCount = Object.keys(answers).length;
   const reachedMin = answeredCount >= MIN_REQUIRED;
+  const isOnLastQuestion = currentIndex === shuffled.length - 1;
+
+  // Auto-navigate to results once all answers are in
+  useEffect(() => {
+    if (allAnswered && answeredCount > 0) {
+      // Small delay so the last selection visually registers before navigating
+      const t = setTimeout(() => {
+        handleFinish();
+      }, 500);
+      return () => clearTimeout(t);
+    }
+  }, [allAnswered]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    if (!formSubmitted) {
+    return (
+      <PageTransition>
+        <div className="min-h-screen flex flex-col items-center justify-center px-4 relative">
+          <FloatingShapes />
+          <div className="relative z-10 w-full max-w-md">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card p-8"
+            >
+              <h2 className="text-xl font-bold text-foreground mb-2 leading-tight">
+                <Translate>Tell us about yourself</Translate>
+              </h2>
+              <p className="text-xs text-muted-foreground mb-6">
+                <Translate>Please enter your name and email to begin the assessment.</Translate>
+              </p>
+
+              <form onSubmit={handleFormSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1.5 uppercase tracking-wider">
+                    <Translate>Name</Translate>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="Enter your name"
+                    className="w-full text-sm bg-background border border-border px-3.5 py-2.5 rounded-md focus:outline-none focus:border-primary/50 text-foreground"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1.5 uppercase tracking-wider">
+                    <Translate>Email Address</Translate>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    className="w-full text-sm bg-background border border-border px-3.5 py-2.5 rounded-md focus:outline-none focus:border-primary/50 text-foreground"
+                  />
+                </div>
+
+                {formError && (
+                  <p className="text-xs text-destructive font-medium mt-1">
+                    <Translate>{formError}</Translate>
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full gradient-primary text-primary-foreground py-3 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all duration-150 flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? <Translate>Saving...</Translate> : (
+                    <>
+                      <Translate>Start Assessment</Translate>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        </div>
+      </PageTransition>
+    );
+  }
 
   if (!question) return <PageTransition><div className="min-h-screen flex items-center justify-center text-foreground"><Translate>Loading...</Translate></div></PageTransition>;
 
@@ -124,7 +296,7 @@ const Quiz = () => {
                   }`}
                 >
                   {complete && <CheckCircle2 className="w-3 h-3" />}
-                  <span>{cat.label}</span>
+                  <span><Translate>{cat.label}</Translate></span>
                   <span className="opacity-60">{done}/{total}</span>
                 </div>
               );
@@ -146,7 +318,7 @@ const Quiz = () => {
                 {/* Category label */}
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-muted text-muted-foreground">
-                    {categoryInfo?.label || question.categoryLabel}
+                    <Translate>{categoryInfo?.label || question.categoryLabel}</Translate>
                   </span>
                   <span className="text-[10px] text-muted-foreground font-medium">
                     #{currentIndex + 1}
@@ -155,7 +327,7 @@ const Quiz = () => {
 
                 {/* Question text */}
                 <p className="text-base font-medium text-foreground leading-relaxed mb-6">
-                  {question.text}
+                  <Translate>{question.text}</Translate>
                 </p>
 
                 {/* Answer options */}
@@ -177,7 +349,7 @@ const Quiz = () => {
                         }`}>
                           {String.fromCharCode(65 + idx)}
                         </span>
-                        {opt.label}
+                        <Translate>{opt.label}</Translate>
                       </button>
                     );
                   })}

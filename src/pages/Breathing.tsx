@@ -88,11 +88,8 @@ const Breathing = () => {
               <h2 className="text-2xl font-bold text-foreground mb-3">Well done</h2>
               <p className="text-muted-foreground text-sm mb-8">You've completed your breathing session.</p>
               <div className="flex gap-2 justify-center">
-                <button onClick={() => navigate('/home')} className="px-5 py-2.5 rounded-md border border-border bg-card text-foreground font-medium text-sm transition-all">
-                  Dashboard
-                </button>
-                <button onClick={() => navigate('/community')} className="gradient-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold text-sm shadow-sm transition-all">
-                  Community
+                <button onClick={() => navigate('/home')} className="w-full gradient-primary text-primary-foreground py-2.5 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all">
+                  <Translate>Go to Dashboard</Translate>
                 </button>
               </div>
             </motion.div>

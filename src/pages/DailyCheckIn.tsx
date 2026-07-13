@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
+import Translate from '@/components/Translate';
 import { Check, X, HelpCircle, ClipboardList } from 'lucide-react';
 
 const DailyCheckIn = () => {
@@ -14,6 +15,13 @@ const DailyCheckIn = () => {
     { id: 'no', label: 'No', icon: X, color: 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10 text-destructive' },
     { id: 'forgot', label: 'Forgot', icon: HelpCircle, color: 'border-warm/30 bg-warm/5 hover:bg-warm/10 text-warm' },
   ];
+
+  const feedbackTitle = answered === 'yes' ? 'Amazing!' : answered === 'no' ? "That's okay" : 'No worries';
+  const feedbackBody = answered === 'yes'
+    ? 'Every small step compounds. Keep going!'
+    : answered === 'no'
+      ? "Tomorrow is a fresh start. One day doesn't define your journey."
+      : "We'll remind you. The fact that you checked in matters!";
 
   return (
     <PageTransition>
@@ -34,7 +42,7 @@ const DailyCheckIn = () => {
             transition={{ delay: 0.1 }}
             className="text-2xl font-bold text-foreground mb-2"
           >
-            Daily Check-in
+            <Translate>Daily Check-in</Translate>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 10 }}
@@ -42,7 +50,7 @@ const DailyCheckIn = () => {
             transition={{ delay: 0.2 }}
             className="text-muted-foreground text-sm mb-8"
           >
-            Did you follow your plan today?
+            <Translate>Did you follow your plan today?</Translate>
           </motion.p>
 
           {!answered ? (
@@ -53,11 +61,17 @@ const DailyCheckIn = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 + i * 0.08 }}
-                  onClick={() => setAnswered(r.id)}
+                  onClick={() => {
+                    setAnswered(r.id);
+                    try {
+                      localStorage.setItem('latest_check_in', r.id);
+                      localStorage.setItem('latest_check_in_time', Date.now().toString());
+                    } catch {}
+                  }}
                   className={`w-full p-4 rounded-md border font-semibold flex items-center justify-center gap-2.5 transition-all ${r.color}`}
                 >
                   <r.icon className="w-4 h-4" />
-                  {r.label}
+                  <Translate>{r.label}</Translate>
                 </motion.button>
               ))}
             </div>
@@ -68,21 +82,17 @@ const DailyCheckIn = () => {
               className="glass-card p-6"
             >
               <p className="text-lg font-bold text-foreground mb-2">
-                {answered === 'yes' ? 'Amazing!' : answered === 'no' ? "That's okay" : 'No worries'}
+                <Translate>{feedbackTitle}</Translate>
               </p>
               <p className="text-sm text-muted-foreground mb-4">
-                {answered === 'yes'
-                  ? 'Every small step compounds. Keep going!'
-                  : answered === 'no'
-                    ? 'Tomorrow is a fresh start. One day doesn\'t define your journey.'
-                    : 'We\'ll remind you. The fact that you checked in matters!'}
+                <Translate>{feedbackBody}</Translate>
               </p>
               <div className="flex gap-2 justify-center">
                 <button onClick={() => navigate('/breathing')} className="px-4 py-2 rounded-md border border-border bg-card text-foreground font-medium text-sm hover:border-primary/30 transition-all">
-                  Breathing
+                  <Translate>Breathing</Translate>
                 </button>
                 <button onClick={() => navigate('/home')} className="gradient-primary text-primary-foreground px-4 py-2 rounded-md font-semibold text-sm shadow-sm transition-all">
-                  Dashboard
+                  <Translate>Dashboard</Translate>
                 </button>
               </div>
             </motion.div>

@@ -5,7 +5,8 @@ import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import ProgressBar from '@/components/ProgressBar';
 import FloatingShapes from '@/components/FloatingShapes';
-import { ArrowRight, AlertTriangle } from 'lucide-react';
+import Translate from '@/components/Translate';
+import { AlertTriangle } from 'lucide-react';
 
 const mathProblems = [
   { q: '17 + 28 = ?', a: 45 },
@@ -31,13 +32,12 @@ const Game3Stress = () => {
       const newResults = [...calmResults, correct];
       setCalmResults(newResults);
       if (currentProblem >= 1) {
-        // Switch to stress phase
         setShowStressOverlay(true);
         setTimeout(() => {
           setShowStressOverlay(false);
           setPhase('stress');
           setCurrentProblem(2);
-          setTimeLeft(4); // Less time under stress
+          setTimeLeft(4);
         }, 2000);
       } else {
         setCurrentProblem(prev => prev + 1);
@@ -100,10 +100,10 @@ const Game3Stress = () => {
               >
                 <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
                 <h3 className="text-lg font-extrabold text-foreground mb-2">
-                  Unexpected bad news!
+                  <Translate>Unexpected bad news!</Translate>
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  Your plans just changed. Now solve these quickly with less time...
+                  <Translate>Your plans just changed. Now solve these quickly with less time...</Translate>
                 </p>
               </motion.div>
             </motion.div>
@@ -119,10 +119,10 @@ const Game3Stress = () => {
             className="text-center mb-6"
           >
             <h2 className="text-2xl font-bold text-foreground mb-2">
-              {phase === 'stress' ? 'Under Pressure!' : 'Stress Simulation'}
+              <Translate>{phase === 'stress' ? 'Under Pressure!' : 'Stress Simulation'}</Translate>
             </h2>
             <p className="text-muted-foreground text-sm">
-              {phase === 'stress' ? 'Solve quickly — time is shorter now!' : 'Solve these at your own pace'}
+              <Translate>{phase === 'stress' ? 'Solve quickly — time is shorter now!' : 'Solve these at your own pace'}</Translate>
             </p>
           </motion.div>
 
@@ -159,7 +159,7 @@ const Game3Stress = () => {
                 onClick={submitAnswer}
                 className="block mx-auto mt-4 gradient-primary text-primary-foreground px-6 py-2.5 rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all"
               >
-                Submit
+                <Translate>Submit</Translate>
               </button>
             </motion.div>
           )}

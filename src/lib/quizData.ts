@@ -24,10 +24,10 @@ export interface QuizCategory {
 export const quizCategories: QuizCategory[] = [
   {
     key: 'stress',
-    label: 'Stress Level',
+    label: 'Stress Regulation',
     emoji: '😰',
     color: 'hsl(0 84% 60%)',
-    description: 'Perceived Stress Scale (PSS) — measures how stressed you feel',
+    description: 'Perceived Stress Scale (PSS) — measures stress regulation capacity',
     maxRaw: 40,
     questionCount: 10,
   },
@@ -51,21 +51,21 @@ export const quizCategories: QuizCategory[] = [
   },
   {
     key: 'financialThreat',
-    label: 'Financial Pressure',
-    emoji: '💰',
+    label: 'Financial Security',
+    emoji: '💸',
     color: 'hsl(38 92% 50%)',
-    description: 'Financial Threat Scale — measures money-related stress',
-    maxRaw: 30, // 5 items, 1-6 scale (mapped)
+    description: 'Financial Threat Scale — measures financial security',
+    maxRaw: 30, // 5 items, 1-6 scale
     questionCount: 5,
   },
   {
     key: 'socialConnectedness',
     label: 'Social Connection',
     emoji: '🤝',
-    color: 'hsl(142 71% 45%)',
-    description: 'Social Connectedness Scale — measures sense of belonging',
-    maxRaw: 40, // 8 items, 1-6 scale (mapped)
-    questionCount: 8,
+    color: 'hsl(142 70% 45%)',
+    description: 'Social Connectedness Scale — measures social support',
+    maxRaw: 90, // 15 items, 1-6 scale
+    questionCount: 15,
   },
 ];
 
@@ -121,8 +121,8 @@ const tmQuestions: Omit<QuizQuestion, 'id'>[] = [
   { text: "I avoid time wasters.", category: 'timeManagement', categoryLabel: 'Time Mgmt', reverse: false, minLabel: 'Never', maxLabel: 'Always', scale: 4, scaleStart: 0, emoji: '🚫' },
   { text: "I finish at least one thing every day.", category: 'timeManagement', categoryLabel: 'Time Mgmt', reverse: false, minLabel: 'Never', maxLabel: 'Always', scale: 4, scaleStart: 0, emoji: '🏁' },
   { text: "I schedule time during the day for personal time alone.", category: 'timeManagement', categoryLabel: 'Time Mgmt', reverse: false, minLabel: 'Never', maxLabel: 'Always', scale: 4, scaleStart: 0, emoji: '🧘' },
-  { text: "I set goals for the academic year.", category: 'timeManagement', categoryLabel: 'Time Mgmt', reverse: false, minLabel: 'Never', maxLabel: 'Always', scale: 4, scaleStart: 0, emoji: '🎓' },
-  { text: "I set goals for myself each semester.", category: 'timeManagement', categoryLabel: 'Time Mgmt', reverse: false, minLabel: 'Never', maxLabel: 'Always', scale: 4, scaleStart: 0, emoji: '📊' },
+  { text: "I have made goals this academic year.", category: 'timeManagement', categoryLabel: 'Time Mgmt', reverse: false, minLabel: 'Never', maxLabel: 'Always', scale: 4, scaleStart: 0, emoji: '🎓' },
+  { text: "I regularly set goals for myself.", category: 'timeManagement', categoryLabel: 'Time Mgmt', reverse: false, minLabel: 'Never', maxLabel: 'Always', scale: 4, scaleStart: 0, emoji: '📊' },
   { text: "I continually try to find little ways to use my time more efficiently.", category: 'timeManagement', categoryLabel: 'Time Mgmt', reverse: false, minLabel: 'Never', maxLabel: 'Always', scale: 4, scaleStart: 0, emoji: '⚡' },
 ];
 

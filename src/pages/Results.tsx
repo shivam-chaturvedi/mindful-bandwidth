@@ -1,11 +1,13 @@
+import { useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
 import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
 import Translate from '@/components/Translate';
+import { calculateQuizScores } from '@/lib/quizData';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
-import { ArrowRight, Brain, Clock, Zap, Users, DollarSign, TrendingUp } from 'lucide-react';
+import { ArrowRight, Brain, Clock, Zap, Users, DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
 
 const getLevel = (score: number) => {
   if (score >= 70) return { label: 'Strong', color: 'text-success' };
@@ -15,27 +17,27 @@ const getLevel = (score: number) => {
 
 const getInsight = (key: string, score: number) => {
   const insights: Record<string, Record<string, string>> = {
-    planning: {
+    timeManagement: {
       low: "When you're under pressure, you tend to focus on urgent tasks and ignore long-term ones. This is a natural tunneling effect of stress.",
       mid: "You balance urgency and importance fairly well, but stress can still narrow your focus when things pile up.",
       high: "You prioritize effectively even under pressure — a sign of strong executive function and planning skills.",
     },
-    impulseControl: {
+    selfControl: {
       low: "You tend to choose immediate rewards over larger future ones. Under scarcity, this pattern intensifies.",
       mid: "You can delay gratification sometimes, but pressure makes instant options more tempting.",
       high: "You consistently choose long-term value over short-term gains — strong impulse regulation.",
     },
-    stressRegulation: {
+    stress: {
       low: "Your cognitive performance drops significantly under stress. This 'bandwidth tax' is common but manageable.",
       mid: "Stress affects your performance somewhat. Building stress resilience can help protect your thinking.",
       high: "You maintain clear thinking even under pressure — your stress regulation skills are solid.",
     },
-    socialSupport: {
+    socialConnectedness: {
       low: "You may be taking on too much alone. Learning to set boundaries and seek help can free up mental bandwidth.",
       mid: "You handle social demands reasonably, but could benefit from stronger boundary-setting strategies.",
       high: "You navigate social demands well, knowing when to help and when to prioritize yourself.",
     },
-    financialStress: {
+    financialThreat: {
       low: "Financial concerns may be occupying mental bandwidth that could go toward planning and focus.",
       mid: "Financial pressure is moderate — building small financial buffers can reduce cognitive load.",
       high: "Financial stress appears low for you right now — one less drain on your mental bandwidth.",
@@ -45,24 +47,89 @@ const getInsight = (key: string, score: number) => {
   return insights[key]?.[level] || '';
 };
 
+const CustomAngleAxisTick = (props: any) => {
+  const { x, y, cx, cy, payload, ...rest } = props;
+  return (
+    <g>
+      <text
+        x={x}
+        y={y}
+        cx={cx}
+        cy={cy}
+        textAnchor={x > cx ? 'start' : x < cx ? 'end' : 'middle'}
+        fontSize={10}
+        fill="hsl(var(--muted-foreground))"
+        {...rest}
+      >
+        <Translate>{payload.value}</Translate>
+      </text>
+    </g>
+  );
+};
+
 const Results = () => {
-  const { scores } = useBandwidth();
+  const { gameResponses, setGameResponse, language } = useBandwidth();
   const navigate = useNavigate();
 
+  // Compute scores directly from quiz answers (persisted in gameResponses or localStorage)
+  const quizScores = useMemo(() => {
+    let answers = gameResponses.quizAnswers || {};
+    if (!answers || typeof answers !== 'object' || Object.keys(answers).length === 0) {
+      try {
+        const stored = localStorage.getItem('quizAnswers');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === 'object') answers = parsed;
+        }
+      } catch { /* ignore */ }
+    }
+    return calculateQuizScores(answers && typeof answers === 'object' ? answers : {});
+  }, [gameResponses]);
+
+  const scoreHistory = useMemo(() => {
+    try {
+      const stored = localStorage.getItem('quiz_scores_history');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  }, [gameResponses]);
+
+  // Initialize history if scores exist but history is empty
+  useEffect(() => {
+    if (quizScores && Object.keys(quizScores).length > 0) {
+      try {
+        const storedHistory = localStorage.getItem('quiz_scores_history');
+        if (!storedHistory) {
+          const initialHistory = [{
+            date: 'First Check-in',
+            timestamp: Date.now() - 10000,
+            scores: quizScores,
+            overall: Math.round((quizScores.stress + quizScores.selfControl + quizScores.timeManagement + quizScores.financialThreat + quizScores.socialConnectedness) / 5)
+          }];
+          localStorage.setItem('quiz_scores_history', JSON.stringify(initialHistory));
+          setGameResponse('quiz_scores_history_init', Date.now());
+        }
+      } catch {}
+    }
+  }, [quizScores, setGameResponse]);
+
   const chartData = [
-    { subject: 'Planning', value: scores.planning, fullMark: 100 },
-    { subject: 'Impulse Control', value: scores.impulseControl, fullMark: 100 },
-    { subject: 'Stress Regulation', value: scores.stressRegulation, fullMark: 100 },
-    { subject: 'Social Support', value: scores.socialSupport, fullMark: 100 },
-    { subject: 'Financial', value: 100 - scores.financialStress, fullMark: 100 },
+    { subject: 'Stress Regulation', value: quizScores.stress || 0, fullMark: 100 },
+    { subject: 'Self-Control', value: quizScores.selfControl || 0, fullMark: 100 },
+    { subject: 'Time Management', value: quizScores.timeManagement || 0, fullMark: 100 },
+    { subject: 'Financial Security', value: quizScores.financialThreat || 0, fullMark: 100 },
+    { subject: 'Social Connection', value: quizScores.socialConnectedness || 0, fullMark: 100 },
   ];
 
   const dimensions = [
-    { key: 'planning', label: 'Planning Ability', score: scores.planning, icon: Clock },
-    { key: 'impulseControl', label: 'Impulse Control', score: scores.impulseControl, icon: Zap },
-    { key: 'stressRegulation', label: 'Stress Regulation', score: scores.stressRegulation, icon: Brain },
-    { key: 'socialSupport', label: 'Social Support', score: scores.socialSupport, icon: Users },
-    { key: 'financialStress', label: 'Financial Pressure', score: 100 - scores.financialStress, icon: DollarSign },
+    { key: 'timeManagement', label: 'Time Management', score: quizScores.timeManagement || 0, icon: Clock },
+    { key: 'selfControl', label: 'Self-Control', score: quizScores.selfControl || 0, icon: Zap },
+    { key: 'stress', label: 'Stress Regulation', score: quizScores.stress || 0, icon: Brain },
+    { key: 'socialConnectedness', label: 'Social Connection', score: quizScores.socialConnectedness || 0, icon: Users },
+    { key: 'financialThreat', label: 'Financial Security', score: quizScores.financialThreat || 0, icon: DollarSign },
   ];
 
   const lowest = dimensions.reduce((a, b) => a.score < b.score ? a : b);
@@ -97,9 +164,9 @@ const Results = () => {
             className="glass-card p-6 mb-4"
           >
             <ResponsiveContainer width="100%" height={260}>
-              <RadarChart data={chartData}>
+              <RadarChart key={language} data={chartData}>
                 <PolarGrid stroke="hsl(var(--border))" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                <PolarAngleAxis dataKey="subject" tick={props => <CustomAngleAxisTick {...props} />} />
                 <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
                 <Radar
                   name="Score"
@@ -112,6 +179,41 @@ const Results = () => {
               </RadarChart>
             </ResponsiveContainer>
           </motion.div>
+
+          {/* Progress Tracker (Only shown if history has > 0 entries) */}
+          {scoreHistory.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="glass-card p-5 mb-4"
+            >
+              <h2 className="text-sm font-bold text-foreground mb-3 flex items-center gap-1.5">
+                <TrendingUp className="w-4 h-4 text-primary" />
+                <Translate>Bandwidth Progress Tracker</Translate>
+              </h2>
+              
+              {/* Timeline of past scores */}
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {scoreHistory.slice().reverse().map((entry: any, index: number) => (
+                  <div key={entry.timestamp || index} className="flex items-center justify-between p-3 rounded-md border border-border/60 bg-card/40 text-xs">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold text-foreground">
+                        <Translate>{entry.date}</Translate>
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        <Translate>Stress</Translate>: {Math.round(entry.scores?.stress || 0)}% | <Translate>Self-Control</Translate>: {Math.round(entry.scores?.selfControl || 0)}% | <Translate>Planning</Translate>: {Math.round(entry.scores?.timeManagement || 0)}%
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-primary">{entry.overall || 0}</span>
+                      <span className="text-[9px] text-muted-foreground block"><Translate>Overall</Translate></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
 
           {/* Insight Cards */}
           <div className="space-y-2 mb-6">
@@ -160,13 +262,27 @@ const Results = () => {
             <p className="text-lg font-bold text-foreground mb-4">
               <Translate>{lowest.label}</Translate>
             </p>
-            <button
-              onClick={() => navigate('/interventions')}
-              className="w-full gradient-primary text-primary-foreground py-2.5 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2"
-            >
-              <Translate>Get Your Action Plan</Translate>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={() => navigate('/ai-coach')}
+                className="flex-1 gradient-primary text-primary-foreground py-2.5 rounded-md font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                <Translate>Talk to Your AI Coach</Translate>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('quizAnswers');
+                  localStorage.removeItem('quizScores');
+                  setGameResponse('quizAnswers', {});
+                  navigate('/quiz');
+                }}
+                className="flex-1 px-4 py-2.5 rounded-md border border-border bg-card text-foreground font-medium text-sm hover:border-primary/30 transition-all flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <Translate>Retake Assessment</Translate>
+              </button>
+            </div>
           </motion.div>
         </div>
       </div>
