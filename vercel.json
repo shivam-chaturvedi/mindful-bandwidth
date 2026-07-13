@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/translate_api/:path*",
+      "destination": "https://translate.googleapis.com/:path*"
+    },
+    {
+      "source": "/translate_google/:path*",
+      "destination": "https://translate.google.com/:path*"
+    },
+    {
+      "source": "/((?!assets/|favicon.ico|sw.js).*)|/",
+      "destination": "/index.html"
+    }
+  ]
+}
