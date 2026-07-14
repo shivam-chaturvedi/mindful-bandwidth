@@ -8,6 +8,8 @@ import Translate from '@/components/Translate';
 import { getSolutionById, Solution } from '@/lib/solutions';
 import { ArrowRight, Target, Trash2, CalendarDays, CheckCircle2, Bookmark } from 'lucide-react';
 
+const CURRENT_PLAN_STORAGE_KEY = 'current_plan_id';
+
 const Interventions = () => {
   const { language } = useBandwidth();
   const navigate = useNavigate();
@@ -25,14 +27,19 @@ const Interventions = () => {
   useEffect(() => {
     const loadPinned = () => {
       try {
+        const currentPlanId = localStorage.getItem(CURRENT_PLAN_STORAGE_KEY);
+        if (currentPlanId) {
+          const currentPlan = getSolutionById(currentPlanId);
+          setPinnedSolutions(currentPlan ? [currentPlan] : []);
+          return;
+        }
+
         const stored = localStorage.getItem('pinned_solutions');
         if (stored) {
           const ids: string[] = JSON.parse(stored);
-          if (Array.isArray(ids)) {
-            const sols = ids
-              .map(id => getSolutionById(id))
-              .filter((s): s is Solution => !!s);
-            setPinnedSolutions(sols);
+          if (Array.isArray(ids) && ids.length > 0) {
+            const firstPlan = getSolutionById(ids[0]);
+            setPinnedSolutions(firstPlan ? [firstPlan] : []);
             return;
           }
         }
@@ -47,6 +54,9 @@ const Interventions = () => {
     const nextPinned = pinnedSolutions.filter(s => s.id !== solId);
     setPinnedSolutions(nextPinned);
     try {
+      if (localStorage.getItem(CURRENT_PLAN_STORAGE_KEY) === solId) {
+        localStorage.removeItem(CURRENT_PLAN_STORAGE_KEY);
+      }
       localStorage.setItem('pinned_solutions', JSON.stringify(nextPinned.map(s => s.id)));
     } catch {}
   };
@@ -87,10 +97,10 @@ const Interventions = () => {
               <Target className="w-3 h-3" /> <Translate>My Action Plan</Translate>
             </div>
             <h1 className="text-2xl font-bold text-foreground mb-1">
-              <Translate>Your Personalised Strategies</Translate>
+              <Translate>Your Current Plan</Translate>
             </h1>
             <p className="text-muted-foreground text-sm">
-              <Translate>Evidence-based interventions pinned from your AI Coach discussions.</Translate>
+              <Translate>The plan you pinned from the AI Coach to address the stress point affecting you most right now.</Translate>
             </p>
           </motion.div>
 
@@ -107,10 +117,10 @@ const Interventions = () => {
                   <Bookmark className="w-6 h-6" />
                 </div>
                 <h2 className="text-lg font-bold text-foreground mb-2">
-                  <Translate>No pinned strategies yet</Translate>
+                  <Translate>No plan pinned yet</Translate>
                 </h2>
                 <p className="text-sm text-muted-foreground mb-6 max-w-xs mx-auto">
-                  <Translate>Discuss your stressors with your AI Coach to find personalized strategies, then pin them here to build your actionable plan.</Translate>
+                  <Translate>Discuss your stressors with your AI Coach and pin one plan you want to follow. It will appear here for easy reference.</Translate>
                 </p>
                 <button
                   onClick={() => navigate('/ai-coach')}

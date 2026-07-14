@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBandwidth } from '@/context/BandwidthContext';
 import FloatingShapes from '@/components/FloatingShapes';
@@ -20,6 +20,19 @@ const Onboarding = () => {
   const [selected, setSelected] = useState<string[]>([]);
   const { setOnboardingSelections } = useBandwidth();
   const navigate = useNavigate();
+
+  const hasCompletedAssessment = (() => {
+    try {
+      const storedAnswers = localStorage.getItem('quizAnswers');
+      return Boolean(storedAnswers);
+    } catch {
+      return false;
+    }
+  })();
+
+  if (hasCompletedAssessment) {
+    return <Navigate to="/home" replace />;
+  }
 
   const toggle = (id: string) => {
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);

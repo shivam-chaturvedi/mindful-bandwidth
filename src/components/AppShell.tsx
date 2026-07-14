@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Home, MessageSquare, Wind, ClipboardList, Sparkles, BarChart3, ArrowLeft, Languages, RefreshCw } from 'lucide-react';
 import { useBandwidth } from '@/context/BandwidthContext';
@@ -15,27 +14,6 @@ const AppShell = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { language, setLanguage, showLangModal, setShowLangModal } = useBandwidth();
-
-  // Set up global fetch interceptor to proxy Google Translate calls
-  useEffect(() => {
-    const originalFetch = window.fetch;
-    window.fetch = async (input, init) => {
-      if (typeof input === 'string') {
-        if (input.includes('translate.googleapis.com')) {
-          const proxiedUrl = input.replace('https://translate.googleapis.com', '/translate_api');
-          return originalFetch(proxiedUrl, init);
-        }
-        if (input.includes('translate.google.com')) {
-          const proxiedUrl = input.replace('https://translate.google.com', '/translate_google');
-          return originalFetch(proxiedUrl, init);
-        }
-      }
-      return originalFetch(input, init);
-    };
-    return () => {
-      window.fetch = originalFetch;
-    };
-  }, []);
 
   // Show navigation links and bottom nav only on main navigation routes
   const isNavRoute = ['/home', '/results', '/ai-coach', '/todays-reset'].includes(location.pathname);

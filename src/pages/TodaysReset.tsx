@@ -44,7 +44,7 @@ const RESET_ACTIVITIES: ResetActivity[] = [
   {
     id: 'focus-planning',
     title: 'Focus Planning',
-    duration: '5 min',
+    duration: '5-60 min',
     reason: 'Your time management is low. Committing to a short, structured window helps lower the barrier to starting.',
     factor: 'timeManagement'
   },
@@ -358,10 +358,10 @@ export default function TodaysReset() {
               </div>
               <div>
                 <p className="text-xs font-bold text-foreground mb-0.5">
-                  <Translate>5-Min Focus Timer</Translate>
+                  <Translate>Custom Focus Timer</Translate>
                 </p>
                 <p className="text-[10px] text-muted-foreground">
-                  <Translate>Interruption-free window</Translate>
+                  <Translate>Choose any block from 5 to 60 minutes</Translate>
                 </p>
               </div>
             </button>
@@ -393,6 +393,7 @@ interface ActiveResetProps {
 }
 
 function ActiveResetFlow({ activityId, title, onComplete, onCancel }: ActiveResetProps) {
+  const focusDurationOptions = Array.from({ length: 12 }, (_, index) => (index + 1) * 5);
   const [step, setStep] = useState(0);
 
   // 1. Task Prioritisation State
@@ -411,6 +412,7 @@ function ActiveResetFlow({ activityId, title, onComplete, onCancel }: ActiveRese
 
   // 4. Focus Planning State
   const [focusGoal, setFocusGoal] = useState('');
+  const [focusDurationMinutes, setFocusDurationMinutes] = useState(5);
   const [focusTimeLeft, setFocusTimeLeft] = useState(300);
   const [isFocusTimerActive, setIsFocusTimerActive] = useState(false);
 
@@ -430,6 +432,15 @@ function ActiveResetFlow({ activityId, title, onComplete, onCancel }: ActiveRese
     }
   }, [activityId, step, dumpTimeLeft, isDumpDissolving]);
 
+  useEffect(() => {
+    if (!isDumpDissolving) return;
+    const t = setTimeout(() => {
+      setDumpText('');
+      onComplete();
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [isDumpDissolving, onComplete]);
+
   // Countdown for focus planning
   useEffect(() => {
     if (activityId === 'focus-planning' && step === 2 && isFocusTimerActive && focusTimeLeft > 0) {
@@ -441,6 +452,15 @@ function ActiveResetFlow({ activityId, title, onComplete, onCancel }: ActiveRese
   }, [activityId, step, isFocusTimerActive, focusTimeLeft]);
 
   const handleNext = () => setStep(prev => prev + 1);
+  const handleThoughtRelease = () => {
+    if (!dumpText.trim() || isDumpDissolving) return;
+    setIsDumpDissolving(true);
+  };
+  const startFocusTimer = () => {
+    setFocusTimeLeft(focusDurationMinutes * 60);
+    setIsFocusTimerActive(true);
+    handleNext();
+  };
 
   // Formatting helpers
   const formatTime = (seconds: number) => {
@@ -654,11 +674,7 @@ function ActiveResetFlow({ activityId, title, onComplete, onCancel }: ActiveRese
           <div className="flex gap-2">
             <button onClick={onCancel} className="px-4 py-2 border border-border rounded-md text-xs font-semibold text-muted-foreground"><Translate>Cancel</Translate></button>
             <button
-              onClick={async () => {
-                setIsDumpDissolving(true);
-                await new Promise(r => setTimeout(r, 2000));
-                onComplete();
-              }}
+              onClick={handleThoughtRelease}
               disabled={!dumpText.trim() || isDumpDissolving}
               className="flex-1 gradient-primary text-primary-foreground py-2 rounded-md font-semibold text-xs disabled:opacity-50"
             >
@@ -673,13 +689,29 @@ function ActiveResetFlow({ activityId, title, onComplete, onCancel }: ActiveRese
         return (
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5"><Clock className="w-4 h-4" /><Translate>Step 1: Set Focus Goal</Translate></h3>
-            <p className="text-xs text-muted-foreground"><Translate>What is the single thing you want to focus on for the next 5 minutes? (e.g. Read Introduction, clean desk).</Translate></p>
+            <p className="text-xs text-muted-foreground"><Translate>Choose one task and the amount of uninterrupted time you want to protect for it.</Translate></p>
             <input
               value={focusGoal}
               onChange={(e) => setFocusGoal(e.target.value)}
               placeholder="My focus goal..."
               className="w-full text-xs bg-background border border-border px-3 py-2 rounded-md focus:outline-none focus:border-primary/50"
             />
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <Translate>Focus Window</Translate>
+              </label>
+              <select
+                value={focusDurationMinutes}
+                onChange={(e) => setFocusDurationMinutes(Number(e.target.value))}
+                className="w-full text-xs bg-background border border-border px-3 py-2 rounded-md focus:outline-none focus:border-primary/50"
+              >
+                {focusDurationOptions.map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {minutes} minutes
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex gap-2 pt-2 border-t border-border">
               <button onClick={onCancel} className="px-4 py-2 border border-border rounded-md text-xs font-semibold text-muted-foreground"><Translate>Cancel</Translate></button>
               <button
@@ -697,15 +729,18 @@ function ActiveResetFlow({ activityId, title, onComplete, onCancel }: ActiveRese
         return (
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5"><Clock className="w-4 h-4" /><Translate>Step 2: Prepare Environment</Translate></h3>
-            <p className="text-xs text-muted-foreground"><Translate>Before starting, eliminate these distractions:</Translate></p>
+            <p className="text-xs text-muted-foreground"><Translate>Before starting your focus block, eliminate these distractions:</Translate></p>
             <ul className="text-xs space-y-1.5 text-muted-foreground list-disc pl-4">
               <li><Translate>Turn off notifications or place your phone out of reach.</Translate></li>
               <li><Translate>Close unrelated browser tabs.</Translate></li>
               <li><Translate>Take a deep breath and sit comfortably.</Translate></li>
             </ul>
+            <div className="rounded-md border border-success/20 bg-success/5 px-3 py-2 text-xs text-foreground">
+              <Translate>Your selected focus window:</Translate> <span className="font-semibold">{focusDurationMinutes} <Translate>minutes</Translate></span>
+            </div>
             <div className="flex gap-2 pt-2 border-t border-border">
               <button onClick={() => setStep(0)} className="px-4 py-2 border border-border rounded-md text-xs font-semibold text-muted-foreground"><Translate>Back</Translate></button>
-              <button onClick={handleNext} className="flex-1 gradient-primary text-primary-foreground py-2 rounded-md font-semibold text-xs"><Translate>Start Timer</Translate></button>
+              <button onClick={startFocusTimer} className="flex-1 gradient-primary text-primary-foreground py-2 rounded-md font-semibold text-xs"><Translate>Start Timer</Translate></button>
             </div>
           </div>
         );
@@ -715,6 +750,7 @@ function ActiveResetFlow({ activityId, title, onComplete, onCancel }: ActiveRese
           <h3 className="text-sm font-bold text-foreground flex items-center justify-center gap-1.5"><Clock className="w-4 h-4 text-primary" /><Translate>Focus Block Active</Translate></h3>
           <p className="text-xs text-muted-foreground"><Translate>Focus solely on:</Translate></p>
           <p className="text-sm font-bold text-foreground">{focusGoal}</p>
+          <p className="text-[11px] text-muted-foreground"><Translate>Protected window:</Translate> {focusDurationMinutes} <Translate>minutes</Translate></p>
           
           <div className="w-24 h-24 rounded-full border-4 border-primary/20 border-t-primary flex items-center justify-center mx-auto my-4 animate-spin-slow">
             <span className="text-lg font-mono font-bold text-foreground animate-none">{formatTime(focusTimeLeft)}</span>
@@ -813,6 +849,7 @@ interface QuickReliefProps {
 }
 
 function QuickReliefModal({ type, onClose }: QuickReliefProps) {
+  const focusDurationOptions = Array.from({ length: 12 }, (_, index) => (index + 1) * 5);
   const [step, setStep] = useState(0);
 
   // 1. Breathing state
@@ -837,6 +874,7 @@ function QuickReliefModal({ type, onClose }: QuickReliefProps) {
   const [isDumpDissolving, setIsDumpDissolving] = useState(false);
 
   // 4. Focus Timer state
+  const [focusDurationMinutes, setFocusDurationMinutes] = useState(5);
   const [focusSeconds, setFocusSeconds] = useState(300);
   const [isFocusActive, setIsFocusActive] = useState(false);
 
@@ -875,6 +913,16 @@ function QuickReliefModal({ type, onClose }: QuickReliefProps) {
       return () => clearTimeout(t);
     }
   }, [type, step, dumpSeconds, isDumpDissolving]);
+
+  useEffect(() => {
+    if (type !== 'thoughtdump' || !isDumpDissolving) return;
+    const t = setTimeout(() => {
+      setDumpText('');
+      setStep(2);
+      setIsDumpDissolving(false);
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [type, isDumpDissolving]);
 
   // Timer loop for focus timer
   useEffect(() => {
@@ -959,7 +1007,7 @@ function QuickReliefModal({ type, onClose }: QuickReliefProps) {
           </div>
         );
 
-      case 'grounding':
+      case 'grounding': {
         if (step >= groundingSteps.length) {
           return (
             <div className="text-center py-4 space-y-4">
@@ -1019,6 +1067,7 @@ function QuickReliefModal({ type, onClose }: QuickReliefProps) {
             </div>
           </div>
         );
+      }
 
       case 'thoughtdump':
         if (step === 0) {
@@ -1033,6 +1082,20 @@ function QuickReliefModal({ type, onClose }: QuickReliefProps) {
                 <button onClick={onClose} className="flex-1 px-4 py-2.5 border border-border rounded-md text-xs font-semibold text-muted-foreground"><Translate>Cancel</Translate></button>
                 <button onClick={() => setStep(1)} className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2.5 rounded-md font-semibold text-xs"><Translate>Begin Dump</Translate></button>
               </div>
+            </div>
+          );
+        }
+        if (step === 2) {
+          return (
+            <div className="text-center py-4 space-y-4">
+              <CheckCircle2 className="w-14 h-14 text-yellow-500 mx-auto" />
+              <h3 className="text-lg font-bold text-foreground"><Translate>Thoughts Released</Translate></h3>
+              <p className="text-xs text-muted-foreground px-4">
+                <Translate>Externalizing those thoughts reduces cognitive load. You can close this slate and return with a clearer mind.</Translate>
+              </p>
+              <button onClick={onClose} className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2.5 rounded-md font-semibold text-xs">
+                <Translate>Close</Translate>
+              </button>
             </div>
           );
         }
@@ -1054,11 +1117,7 @@ function QuickReliefModal({ type, onClose }: QuickReliefProps) {
             <div className="flex gap-2">
               <button onClick={onClose} className="px-4 py-2 border border-border rounded-md text-xs font-semibold text-muted-foreground"><Translate>Close</Translate></button>
               <button
-                onClick={async () => {
-                  setIsDumpDissolving(true);
-                  await new Promise(r => setTimeout(r, 2000));
-                  setStep(2);
-                }}
+                onClick={() => setIsDumpDissolving(true)}
                 disabled={!dumpText.trim() || isDumpDissolving}
                 className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-md font-semibold text-xs disabled:opacity-50"
               >
@@ -1069,11 +1128,59 @@ function QuickReliefModal({ type, onClose }: QuickReliefProps) {
         );
       
       case 'focustimer':
+        if (step === 0) {
+          return (
+            <div className="space-y-4">
+              <div className="text-center">
+                <h3 className="text-sm font-bold text-foreground flex items-center justify-center gap-1.5">
+                  <Clock className="w-4 h-4 text-success" />
+                  <Translate>Custom Focus Window</Translate>
+                </h3>
+                <p className="text-[10px] text-muted-foreground">
+                  <Translate>Choose how long you want to protect this focus block.</Translate>
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Translate>Focus Window</Translate>
+                </label>
+                <select
+                  value={focusDurationMinutes}
+                  onChange={(e) => setFocusDurationMinutes(Number(e.target.value))}
+                  className="w-full text-xs bg-background border border-border px-3 py-2 rounded-md focus:outline-none focus:border-success/50"
+                >
+                  {focusDurationOptions.map((minutes) => (
+                    <option key={minutes} value={minutes}>
+                      {minutes} minutes
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={onClose} className="px-4 py-2 border border-border rounded-md text-xs font-semibold text-muted-foreground">
+                  <Translate>Close</Translate>
+                </button>
+                <button
+                  onClick={() => {
+                    setFocusSeconds(focusDurationMinutes * 60);
+                    setIsFocusActive(true);
+                    setStep(1);
+                  }}
+                  className="flex-1 bg-success hover:bg-success-dark text-white py-2 rounded-md font-semibold text-xs transition-all"
+                >
+                  <Translate>Start Timer</Translate>
+                </button>
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="text-center py-2 space-y-6">
             <div>
-              <h3 className="text-sm font-bold text-foreground flex items-center justify-center gap-1.5"><Clock className="w-4 h-4 text-success" /><Translate>5-Minute Focus Window</Translate></h3>
-              <p className="text-[10px] text-muted-foreground"><Translate>Work on a single task without any interruptions.</Translate></p>
+              <h3 className="text-sm font-bold text-foreground flex items-center justify-center gap-1.5"><Clock className="w-4 h-4 text-success" /><Translate>Custom Focus Window</Translate></h3>
+              <p className="text-[10px] text-muted-foreground">{focusDurationMinutes} <Translate>minute protected block</Translate></p>
             </div>
 
             <div className="relative w-36 h-36 mx-auto flex items-center justify-center">
@@ -1087,6 +1194,15 @@ function QuickReliefModal({ type, onClose }: QuickReliefProps) {
                 className="flex-1 bg-success hover:bg-success-dark text-white py-2 rounded-md font-semibold text-xs transition-all"
               >
                 {isFocusActive ? <Translate>Pause</Translate> : <Translate>Start Timer</Translate>}
+              </button>
+              <button
+                onClick={() => {
+                  setIsFocusActive(false);
+                  setStep(0);
+                }}
+                className="px-4 py-2 border border-border rounded-md text-xs font-semibold text-muted-foreground"
+              >
+                <Translate>Change</Translate>
               </button>
               <button onClick={onClose} className="px-4 py-2 border border-border rounded-md text-xs font-semibold text-muted-foreground"><Translate>Done</Translate></button>
             </div>

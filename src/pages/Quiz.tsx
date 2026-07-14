@@ -7,7 +7,7 @@ import FloatingShapes from '@/components/FloatingShapes';
 import Translate, { getTranslation } from '@/components/Translate';
 import { allQuestions, shuffleQuestions, getScaleOptions, quizCategories, calculateQuizScores } from '@/lib/quizData';
 import { ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { saveAssessmentScores, upsertUserProfile } from '@/lib/supabase';
 
 const MIN_REQUIRED = 15;
 
@@ -60,17 +60,9 @@ const Quiz = () => {
     setIsSubmitting(true);
 
     try {
-      if (supabase) {
-        const { error } = await supabase
-          .from('users')
-          .insert([{ name: formName.trim(), email: formEmail.trim() }]);
-        if (error) {
-          console.error('Supabase user insert failed:', error);
-        }
-      }
-
       localStorage.setItem('user_name', formName.trim());
-      localStorage.setItem('user_email', formEmail.trim());
+      localStorage.setItem('user_email', formEmail.trim().toLowerCase());
+      await upsertUserProfile(formName.trim(), formEmail.trim());
       setFormSubmitted(true);
     } catch (err) {
       console.error('Supabase submit error:', err);
@@ -87,12 +79,6 @@ const Quiz = () => {
       });
     }
   }, [language, shuffled]);
-
-  // Overwrite previous quiz results on a fresh quiz start
-  useEffect(() => {
-    localStorage.removeItem('quizAnswers');
-    localStorage.removeItem('quizScores');
-  }, []);
 
   const question = shuffled.length > 0 ? shuffled[currentIndex] : null;
   const options = useMemo(() => question ? getScaleOptions(question) : [], [question]);
@@ -141,11 +127,15 @@ const Quiz = () => {
     }
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     setGameResponse('quizAnswers', answers);
+    const scores = calculateQuizScores(answers);
+    const overall = Math.round(
+      (scores.stress + scores.selfControl + scores.timeManagement + scores.financialThreat + scores.socialConnectedness) / 5
+    );
+
     try {
       localStorage.setItem('quizAnswers', JSON.stringify(answers));
-      const scores = calculateQuizScores(answers);
       localStorage.setItem('quizScores', JSON.stringify(scores));
       
       const storedHistory = localStorage.getItem('quiz_scores_history');
@@ -154,10 +144,34 @@ const Quiz = () => {
         date: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
         timestamp: Date.now(),
         scores,
-        overall: Math.round((scores.stress + scores.selfControl + scores.timeManagement + scores.financialThreat + scores.socialConnectedness) / 5)
+        overall
       });
       localStorage.setItem('quiz_scores_history', JSON.stringify(history));
-    } catch {}
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      const storedName = localStorage.getItem('user_name') || formName;
+      const storedEmail = localStorage.getItem('user_email') || formEmail;
+      if (storedName && storedEmail) {
+        const userId = await upsertUserProfile(storedName, storedEmail);
+        if (userId) {
+          await saveAssessmentScores(userId, {
+            stress: scores.stress,
+            selfControl: scores.selfControl,
+            timeManagement: scores.timeManagement,
+            financialThreat: scores.financialThreat,
+            socialConnectedness: scores.socialConnectedness,
+            overall,
+            rawAnswers: answers,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Supabase assessment save failed:', error);
+    }
+
     navigate('/quiz-results');
   };
 

@@ -1,95 +1,111 @@
 import { useState, useEffect } from 'react';
 import { useBandwidth } from '@/context/BandwidthContext';
-import translate from 'google-translate-api-x';
 
 interface TranslateProps {
   children: string;
 }
 
+async function translateOne(text: string, from: string, to: string): Promise<string> {
+  const url = new URL('/translate_api/translate_a/single', window.location.origin);
+  url.searchParams.set('client', 'gtx');
+  url.searchParams.set('sl', from);
+  url.searchParams.set('tl', to);
+  url.searchParams.set('dt', 't');
+  url.searchParams.set('q', text);
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`Translate error ${response.status}`);
+  }
+
+  const data = await response.json();
+  const translated = Array.isArray(data?.[0])
+    ? data[0].map((part: unknown[]) => part?.[0] || '').join('')
+    : text;
+
+  return translated || text;
+}
+
+async function requestTranslations(text: string | string[], from: string, to: string) {
+  if (Array.isArray(text)) {
+    const translations = await Promise.all(text.map((item) => translateOne(item, from, to)));
+    return { translations };
+  }
+
+  const translation = await translateOne(text, from, to);
+  return { translation };
+}
+
 // In-memory queues for batching translation requests per language
 const batchQueues: Record<string, { text: string; resolve: (val: string) => void }[]> = {};
-const batchTimeouts: Record<string, any> = {};
+const batchTimeouts: Record<string, ReturnType<typeof setTimeout>> = {};
 
-// Performs the batch translation request by joining texts with a delimiter
-async function processBatch(texts: string[], lang: string): Promise<string[]> {
+async function processBatch(texts: string[], from: string, lang: string): Promise<string[]> {
   if (texts.length === 0) return [];
   if (texts.length === 1) {
     try {
-      const res = await translate(texts[0], { from: 'en', to: lang, client: 'gtx' });
-      return [res?.text || texts[0]];
+      const res = await requestTranslations(texts[0], from, lang);
+      return [res.translation || texts[0]];
     } catch {
       return [texts[0]];
     }
   }
 
-  const delimiter = ' \n---\n ';
-  const combined = texts.join(delimiter);
-
   try {
-    const res = await translate(combined, { from: 'en', to: lang, client: 'gtx' });
-    const translatedCombined = res?.text || combined;
-    
-    // Split using a regex that matches the delimiter with any surrounding whitespace variations
-    const results = translatedCombined.split(/\s*\n---\n\s*/);
-
-    if (results.length === texts.length) {
-      return results.map(r => r.trim());
-    } else {
-      console.warn(`Translation batch length mismatch: expected ${texts.length}, got ${results.length}. Falling back to individual requests.`);
-      return Promise.all(texts.map(async (t) => {
-        try {
-          const r = await translate(t, { from: 'en', to: lang, client: 'gtx' });
-          return r?.text || t;
-        } catch {
-          return t;
-        }
-      }));
+    const res = await requestTranslations(texts, from, lang);
+    if (Array.isArray(res.translations) && res.translations.length === texts.length) {
+      return res.translations;
     }
+    return texts;
   } catch (err) {
     console.error('Batch translation failed', err);
     return texts;
   }
 }
 
-export async function getTranslation(text: string, lang: string): Promise<string> {
-  const cacheKey = `trans_${lang}_${text}`;
+export async function getTranslation(text: string, lang: string, from = 'en'): Promise<string> {
+  const cacheKey = `trans_${from}_${lang}_${text}`;
 
-  // 1. Check localStorage cache first (instant, no network)
   try {
     const cached = localStorage.getItem(cacheKey);
     if (cached) return cached;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
-  // 2. Queue translation for batching
   return new Promise((resolve) => {
-    if (!batchQueues[lang]) {
-      batchQueues[lang] = [];
+    const queueKey = `${from}:${lang}`;
+
+    if (!batchQueues[queueKey]) {
+      batchQueues[queueKey] = [];
     }
 
-    batchQueues[lang].push({ text, resolve });
+    batchQueues[queueKey].push({ text, resolve });
 
-    if (batchTimeouts[lang]) {
-      clearTimeout(batchTimeouts[lang]);
+    if (batchTimeouts[queueKey]) {
+      clearTimeout(batchTimeouts[queueKey]);
     }
 
-    batchTimeouts[lang] = setTimeout(async () => {
-      const queue = batchQueues[lang];
-      delete batchQueues[lang];
-      delete batchTimeouts[lang];
+    batchTimeouts[queueKey] = setTimeout(async () => {
+      const queue = batchQueues[queueKey];
+      delete batchQueues[queueKey];
+      delete batchTimeouts[queueKey];
 
       if (!queue || queue.length === 0) return;
 
-      const textsToTranslate = queue.map(q => q.text);
-      const results = await processBatch(textsToTranslate, lang);
+      const textsToTranslate = queue.map((q) => q.text);
+      const results = await processBatch(textsToTranslate, from, lang);
 
       queue.forEach((item, idx) => {
         const translated = results[idx] || item.text;
         try {
-          localStorage.setItem(`trans_${lang}_${item.text}`, translated);
-        } catch { /* ignore */ }
+          localStorage.setItem(`trans_${from}_${lang}_${item.text}`, translated);
+        } catch {
+          /* ignore */
+        }
         item.resolve(translated);
       });
-    }, 50); // 50ms debounce window to group all renders
+    }, 50);
   });
 }
 
@@ -105,15 +121,16 @@ export const Translate = ({ children }: TranslateProps) => {
 
     if (language !== 'en') {
       let active = true;
-      // Show original immediately, then swap when translation arrives
       setTranslatedText(children);
       getTranslation(children, language).then((result) => {
         if (active) setTranslatedText(result);
       });
-      return () => { active = false; };
-    } else {
-      setTranslatedText(children);
+      return () => {
+        active = false;
+      };
     }
+
+    setTranslatedText(children);
   }, [children, language]);
 
   return <>{translatedText}</>;

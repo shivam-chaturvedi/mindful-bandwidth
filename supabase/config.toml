@@ -1,0 +1,6 @@
+# Supabase local/project config for Edge Functions.
+
+project_id = "dixkgfictwaxtzdlypev"
+
+[functions.coach]
+verify_jwt = true

@@ -88,8 +88,8 @@ const DailyCheckIn = () => {
                 <Translate>{feedbackBody}</Translate>
               </p>
               <div className="flex gap-2 justify-center">
-                <button onClick={() => navigate('/breathing')} className="px-4 py-2 rounded-md border border-border bg-card text-foreground font-medium text-sm hover:border-primary/30 transition-all">
-                  <Translate>Breathing</Translate>
+                <button onClick={() => navigate('/todays-reset')} className="px-4 py-2 rounded-md border border-border bg-card text-foreground font-medium text-sm hover:border-primary/30 transition-all">
+                  <Translate>Today's Reset</Translate>
                 </button>
                 <button onClick={() => navigate('/home')} className="gradient-primary text-primary-foreground px-4 py-2 rounded-md font-semibold text-sm shadow-sm transition-all">
                   <Translate>Dashboard</Translate>

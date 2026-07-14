@@ -6,8 +6,9 @@ import PageTransition from '@/components/PageTransition';
 import FloatingShapes from '@/components/FloatingShapes';
 import { calculateQuizScores } from '@/lib/quizData';
 import { getRecommendedSolutions, Solution } from '@/lib/solutions';
-import { ArrowRight, Bot, User, Send, Sparkles, ArrowLeft, RefreshCw, Languages } from 'lucide-react';
-import translate from 'google-translate-api-x';
+import { getTranslation } from '@/components/Translate';
+import { invokeCoachFunction } from '@/lib/supabase';
+import { ArrowRight, Bot, User, Send, Sparkles, Languages, BookmarkPlus, Check } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -19,40 +20,27 @@ interface Message {
   solutionCards?: Solution[];
 }
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
-const _env = import.meta.env as unknown as { GEMINI_API_KEY?: string; VITE_GEMINI_API_KEY?: string };
-const GEMINI_API_KEY = _env.VITE_GEMINI_API_KEY || _env.GEMINI_API_KEY || '';
+const CURRENT_PLAN_STORAGE_KEY = 'current_plan_id';
+const PINNED_SOLUTIONS_STORAGE_KEY = 'pinned_solutions';
+const COACH_FIRST_USE_COMPLETED_KEY = 'ai_coach_first_use_completed';
 
-async function callGemini(apiKey: string, contents: any[], systemInstructionText: string): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: contents,
-      systemInstruction: {
-        parts: [{ text: systemInstructionText }]
-      },
-      generationConfig: { 
-        temperature: 0.7, 
-        responseMimeType: 'application/json' 
-      },
-    }),
+type CoachContent = {
+  role: 'model' | 'user';
+  parts: { text: string }[];
+};
+
+type CoachMode = 'initial' | 'followup' | 'closing' | 'open_chat';
+
+async function callCoachModel<T>(
+  mode: CoachMode,
+  contents: CoachContent[],
+  systemInstructionText: string
+): Promise<T> {
+  return invokeCoachFunction<T>({
+    mode,
+    contents,
+    systemInstructionText,
   });
-  if (!res.ok || res.status >= 400) {
-    const errText = await res.text();
-    throw new Error(`Gemini error ${res.status}: ${errText}`);
-  }
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  return text;
-}
-
-function tryParseJson<T = unknown>(text: string): T | null {
-  try { return JSON.parse(text) as T; } catch { /* ignore */ }
-  const match = text.match(/\{[\s\S]*\}/);
-  if (match) { try { return JSON.parse(match[0]) as T; } catch { /* ignore */ } }
-  return null;
 }
 
 const domainLabels: Record<string, string> = {
@@ -66,8 +54,7 @@ const domainLabels: Record<string, string> = {
 async function translateText(text: string, to: string, from = 'auto'): Promise<string> {
   if (!text || !text.trim()) return text;
   try {
-    const res = await translate(text, { from, to, client: 'gtx' });
-    return res.text;
+    return await getTranslation(text, to, from);
   } catch (e) {
     console.error('Translation failed:', e);
     return text;
@@ -77,9 +64,9 @@ async function translateText(text: string, to: string, from = 'auto'): Promise<s
 async function translateOptions(opts: string[], to: string, from = 'auto'): Promise<string[]> {
   if (!opts || opts.length === 0) return [];
   try {
-    const res = await translate(opts, { from, to, client: 'gtx' });
-    if (Array.isArray(res)) {
-      return res.map(r => r.text);
+    const results = await Promise.all(opts.map((opt) => getTranslation(opt, to, from)));
+    if (Array.isArray(results)) {
+      return results;
     }
     return opts;
   } catch (e) {
@@ -88,8 +75,8 @@ async function translateOptions(opts: string[], to: string, from = 'auto'): Prom
   }
 }
 
-function buildGeminiContents(history: Message[]): any[] {
-  const contents: any[] = [];
+function buildCoachContents(history: Message[]): CoachContent[] {
+  const contents: CoachContent[] = [];
   
   history.forEach((msg) => {
     const role = msg.role === 'ai' ? 'model' : 'user';
@@ -119,13 +106,34 @@ const AICoach = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [translating, setTranslating] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sessionVersionRef = useRef(0);
+  const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
+  const [hasCompletedFirstCoachSession, setHasCompletedFirstCoachSession] = useState(false);
 
   const [userName, setUserName] = useState('');
   useEffect(() => {
     try {
       const stored = localStorage.getItem('user_name');
       if (stored) setUserName(stored);
-    } catch {}
+    } catch {
+      /* ignore localStorage access issues */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      setCurrentPlanId(localStorage.getItem(CURRENT_PLAN_STORAGE_KEY));
+    } catch {
+      /* ignore localStorage access issues */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      setHasCompletedFirstCoachSession(localStorage.getItem(COACH_FIRST_USE_COMPLETED_KEY) === 'true');
+    } catch {
+      /* ignore localStorage access issues */
+    }
   }, []);
 
   const quizScores = (() => {
@@ -134,7 +142,9 @@ const AICoach = () => {
       try {
         const stored = localStorage.getItem('quizAnswers');
         if (stored) answers = JSON.parse(stored);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
     return calculateQuizScores(answers);
   })();
@@ -145,191 +155,164 @@ const AICoach = () => {
   // Build a context string from scores
   const scoresContext = JSON.stringify(quizScores);
 
-  const isMockMode = !GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here';
-
-  // Ask Gemini or Mock for the first greeting
-  const aiGenerateFirstQuestion = async (): Promise<Message[] | null> => {
-    if (isMockMode) {
-      const mockOptionsMap: Record<string, string[]> = {
-        timeManagement: [
-          "I rush and make mistakes when tasks pile up.",
-          "I procrastinate on high-effort assignments.",
-          "I find it hard to stick to a daily schedule.",
-          "I get distracted and lose track of time."
-        ],
-        selfControl: [
-          "I check my phone/social media constantly.",
-          "I spend money impulsively when stressed.",
-          "I put off studying for instant gratification.",
-          "I have trouble staying focused on boring tasks."
-        ],
-        stress: [
-          "My mind goes blank and I can't think clearly.",
-          "I carry physical tension in my neck/shoulders.",
-          "I get highly anxious and overwhelmed quickly.",
-          "I struggle to wind down or fall asleep."
-        ],
-        socialConnectedness: [
-          "I isolate myself from friends and family.",
-          "I feel lonely but avoid reaching out to others.",
-          "I say yes to everything and get overwhelmed.",
-          "I struggle to establish healthy boundaries."
-        ],
-        financialThreat: [
-          "I worry constantly about daily expenses.",
-          "I avoid checking my bank accounts out of fear.",
-          "I feel stressed whenever I have to pay bills.",
-          "I feel like I don't have a financial buffer."
-        ]
-      };
-
-      const opts = mockOptionsMap[weakestDomain] || mockOptionsMap.stress;
+  const buildMockFirstQuestion = (): Message[] => {
+    if (hasCompletedFirstCoachSession) {
       return [
         {
           id: 'intro',
           role: 'ai',
-          text: `Hello ${userName ? userName + '! ' : ''}I am your AI Bandwidth Coach. Based on your profile, your weakest reserve right now is **${domainLabels[weakestDomain]}** (scored ${quizScores[weakestDomain] || 0}/100). Under cognitive scarcity, our brains naturally tunnel and deplete our bandwidth. Let's work together to restore it.`
+          text: `Hi ${userName ? `${userName}, ` : ''}I'm here to listen and help you think things through at your pace.`
         },
         {
           id: 'q1',
           role: 'ai',
-          text: `To start, which of these patterns fits you best when your **${domainLabels[weakestDomain]}** is taxed?`,
-          options: opts
+          text: `What's on your mind today?`
         }
       ];
     }
 
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') {
-      setErrorMsg('Please configure your Gemini API Key in the .env file (VITE_GEMINI_API_KEY) to start chatting with the Coach.');
-      return null;
+    return [
+      {
+        id: 'intro',
+        role: 'ai',
+        text: `Hi ${userName ? `${userName}, ` : ''}I looked over your assessment and your lowest score right now is **${domainLabels[weakestDomain]}** at **${quizScores[weakestDomain] || 0}/100**. That gives us a useful starting point, but I want to hear how this is actually showing up for you.`
+      },
+      {
+        id: 'q1',
+        role: 'ai',
+        text: `Does that seem like the area putting the most pressure on you right now, or is something else feeling heavier?`
+      }
+    ];
+  };
+
+  const buildMockFollowUp = (targetPhase: number): Message | null => {
+    if (targetPhase === 2) {
+      return {
+        id: `ai-${Date.now()}`,
+        role: 'ai',
+        text: `Thank you for sharing that. What part of this feels the heaviest for you right now?`
+      };
     }
+    if (targetPhase === 3) {
+      return {
+        id: `ai-${Date.now()}`,
+        role: 'ai',
+        text: `What have you already tried, and what feels realistic for you to commit to this week?`
+      };
+    }
+    return null;
+  };
+
+  const buildMockClosing = (): Message => {
+    let shown: string[] = [];
+    try {
+      const storedShown = localStorage.getItem('ai_coach_shown_solutions');
+      if (storedShown) shown = JSON.parse(storedShown);
+    } catch {
+      /* ignore localStorage access issues */
+    }
+
+    const solutions = getRecommendedSolutions(quizScores, undefined, shown);
+
+    try {
+      const nextShown = Array.from(new Set([...shown, ...solutions.map(s => s.id)]));
+      localStorage.setItem('ai_coach_shown_solutions', JSON.stringify(nextShown));
+    } catch {
+      /* ignore localStorage access issues */
+    }
+
+    return {
+      id: 'solutions',
+      role: 'ai',
+      text: `Thank you for sharing all of that. I pulled together a few practical plans that fit what you've described and that you can pin if one feels like the right next step for you.`,
+      solutionCards: solutions
+    };
+  };
+
+  const buildMockOpenChat = (): Message => ({
+    id: `ai-${Date.now()}`,
+    role: 'ai',
+    text: `That makes sense. Let's stay with that and look for one small step that would make this feel more manageable for you this week.`
+  });
+
+  const aiGenerateFirstQuestion = async (): Promise<Message[] | null> => {
     const weak = sorted[0];
-    const systemPrompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
+    const systemPrompt = hasCompletedFirstCoachSession
+      ? `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
+The user's name is ${userName || 'Participant'}. Address them by name in your intro greeting.
+The user has already used this coach before.
+The user has assessment scores available as background context: ${scoresContext}.
+
+You must reply ONLY in JSON with this exact shape:
+{"intro":"<1-2 sentence warm intro that invites the user to lead the conversation>","question":"<exactly one short open-ended question that asks what is on their mind today>","options":null}
+
+Do not lead with scores, weakest domains, or a scripted assessment recap unless the user asks. Do not include markdown code block fences (like \`\`\`json) in your response, just the raw JSON.`
+      : `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
 The user's name is ${userName || 'Participant'}. Address them by name in your intro greeting.
 The user just completed an assessment with these scores (0-100, higher = better): ${scoresContext}.
 Their weakest area is "${domainLabels[weak[0]]}" at ${weak[1]}/100.
 
 You must reply ONLY in JSON with this exact shape:
-{"intro":"<2-3 sentence empathetic intro that names their weakest domain and score, uses **bold** for emphasis>","question":"<one specific follow-up question to better understand them>","options":["opt1","opt2","opt3","opt4"]}
+{"intro":"<1-2 sentence warm intro that briefly mentions their lowest score and frames it as a starting point, not a fixed diagnosis>","question":"<one short question asking whether this is actually the biggest source of stress right now, or whether something else feels heavier>","options":null}
 
-Make options first-person statements (e.g., "I feel...") relevant to ${domainLabels[weak[0]]}. Do not include markdown code block fences (like \`\`\`json) in your response, just the raw JSON.`;
+Do not lead with multiple suggestions or preset answer choices. Do not include markdown code block fences (like \`\`\`json) in your response, just the raw JSON.`;
 
     try {
-      const text = await callGemini(GEMINI_API_KEY, [{ role: 'user', parts: [{ text: 'Start session.' }] }], systemPrompt);
-      const json = tryParseJson<{ intro: string; question: string; options: string[] }>(text);
-      if (!json?.intro || !json?.question || !Array.isArray(json?.options)) {
-        throw new Error('Invalid JSON response structure');
-      }
+      const json = await callCoachModel<{ intro: string; question: string }>(
+        'initial',
+        [{ role: 'user', parts: [{ text: 'Start session.' }] }],
+        systemPrompt
+      );
       return [
         { id: 'intro', role: 'ai', text: json.intro },
-        { id: 'q1', role: 'ai', text: json.question, options: json.options.slice(0, 4) },
+        { id: 'q1', role: 'ai', text: json.question },
       ];
     } catch (e) {
-      console.error('Gemini first question failed', e);
-      setErrorMsg('Failed to communicate with Gemini. Please verify your API key and connection details in the .env file.');
-      return null;
+      console.error('Coach model first question failed', e);
+      setErrorMsg(e instanceof Error ? e.message : 'Live coaching is temporarily unavailable, so we switched to the built-in coach flow.');
+      return buildMockFirstQuestion();
     }
   };
 
   const aiGenerateFollowUp = async (history: Message[]): Promise<Message | null> => {
-    if (isMockMode) {
-      const targetPhase = phase + 1;
-      if (targetPhase === 2) {
-        return {
-          id: `ai-${Date.now()}`,
-          role: 'ai',
-          text: `I completely understand. That's a classic response when your **${domainLabels[weakestDomain]}** capacity is running low. Could you tell me in your own words how that affects your daily decisions or academic performance?`
-        };
-      }
-      if (targetPhase === 3) {
-        const secondWeakest = sorted[1]?.[0] || 'stress';
-        const secondWeakLabel = domainLabels[secondWeakest] || secondWeakest;
-        return {
-          id: `ai-${Date.now()}`,
-          role: 'ai',
-          text: `Thank you for sharing that. It makes absolute sense. Often, a shortage in one domain spills over and taxes another. Do you notice this also impacting your **${secondWeakLabel}** (scored ${quizScores[secondWeakest] || 0}/100)?`,
-          options: [
-            "Yes, they are definitely linked",
-            "Sometimes when pressure gets high",
-            "No, they feel completely separate",
-            "I'm not sure"
-          ]
-        };
-      }
-      return null;
-    }
-
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') return null;
-    const contents = buildGeminiContents(history);
-    const targetPhase = phase + 1;
-    let phaseInstruction = '';
-
-    if (targetPhase === 2) {
-      phaseInstruction = `This is Phase 2 of the conversation. Ask a follow-up question to explore how their weakest domain ("${domainLabels[weakestDomain]}") affects their decision-making or daily life. Generate an open-ended question (set options to null in the response).`;
-    } else if (targetPhase === 3) {
-      const secondWeakest = sorted[1]?.[0] || 'stress';
-      const secondWeakLabel = domainLabels[secondWeakest] || secondWeakest;
-      phaseInstruction = `This is Phase 3 of the conversation. Ask a question to see if their weakest domain is connected to their second weakest domain ("${secondWeakLabel}" at ${sorted[1]?.[1]}/100). Provide 3-4 options for the user.`;
-    }
-
+    const contents = buildCoachContents(history);
     const systemPrompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
 Scores: ${scoresContext}
 
-${phaseInstruction}
+Ask one open-ended follow-up question about the specific issue the user just described.
+The most recent user message has highest priority and may correct earlier assumptions.
+If the user says a previously mentioned stress category is not the issue, acknowledge that and move away from it immediately.
+Do not keep anchoring to the weakest score unless the user's own words support it.
+Do not introduce other stress domains unless the user explicitly links them.
 
 Reply ONLY in JSON in this exact shape:
-{"question":"<single thoughtful follow-up question, may use **bold**>","options":["opt1","opt2","opt3","opt4"] or null}
+{"question":"<single thoughtful follow-up question, may use **bold**>","options":null}
 
-If the question should be open-ended, set options to null. Do not include markdown code block fences (like \`\`\`json) in your response, just the raw JSON.`;
+Do not include markdown code block fences (like \`\`\`json) in your response, just the raw JSON.`;
 
     try {
-      const text = await callGemini(GEMINI_API_KEY, contents, systemPrompt);
-      const json = tryParseJson<{ question: string; options: string[] | null }>(text);
-      if (!json?.question) throw new Error('Invalid JSON response structure');
+      const json = await callCoachModel<{ question: string }>('followup', contents, systemPrompt);
       return {
         id: `ai-${Date.now()}`,
         role: 'ai',
         text: json.question,
-        options: Array.isArray(json.options) ? json.options.slice(0, 4) : undefined,
       };
     } catch (e) {
-      console.error('Gemini follow-up failed', e);
-      setErrorMsg('Failed to communicate with Gemini. Please verify your API key and connection details in the .env file.');
-      return null;
+      console.error('Coach model follow-up failed', e);
+      setErrorMsg(e instanceof Error ? e.message : 'Live coaching is temporarily unavailable, so we switched to the built-in coach flow.');
+      return buildMockFollowUp(2);
     }
   };
 
   const aiGenerateClosing = async (history: Message[]): Promise<Message | null> => {
-    if (isMockMode) {
-      let shown: string[] = [];
-      try {
-        const storedShown = localStorage.getItem('ai_coach_shown_solutions');
-        if (storedShown) shown = JSON.parse(storedShown);
-      } catch {}
-
-      const solutions = getRecommendedSolutions(quizScores, undefined, shown);
-
-      try {
-        const nextShown = Array.from(new Set([...shown, ...solutions.map(s => s.id)]));
-        localStorage.setItem('ai_coach_shown_solutions', JSON.stringify(nextShown));
-      } catch {}
-
-      return {
-        id: 'solutions',
-        role: 'ai',
-        text: `Thank you. I have analyzed your responses. Under cognitive scarcity, the brain tends to prioritize immediate threats over long-term stability. To help you rebuild your **${domainLabels[weakestDomain]}** reserves, I have selected these tailored strategies from the content bank. Feel free to keep chatting in this session!`,
-        solutionCards: solutions
-      };
-    }
-
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') return null;
-    const contents = buildGeminiContents(history);
+    const contents = buildCoachContents(history);
     const solutions = getRecommendedSolutions(quizScores);
 
     const systemPrompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
 Scores: ${scoresContext}
 
-This is the end of the conversation. Provide a warm, supportive closing summary that synthesizes what they shared and how their bandwidth is taxed.
+This is the end of the initial conversation. Provide a warm, supportive closing summary that synthesizes what the user actually shared. If you mention score data, keep it brief and only as background. Do not force unrelated domains into the summary.
+Treat the user's latest messages as the source of truth. If they corrected an earlier assumption, reflect that correction.
 
 Reply ONLY in JSON in this exact shape:
 {"summary":"<2-4 sentence empathetic synthesis summarizing their situation. Use **bold** sparingly.>"}
@@ -337,56 +320,85 @@ Reply ONLY in JSON in this exact shape:
 Do not include markdown code block fences (like \`\`\`json) in your response, just the raw JSON.`;
 
     try {
-      const text = await callGemini(GEMINI_API_KEY, contents, systemPrompt);
-      const json = tryParseJson<{ summary: string }>(text);
+      const json = await callCoachModel<{ summary: string }>('closing', contents, systemPrompt);
       const summary = json?.summary || `Based on our conversation, here are evidence-based interventions tailored to you.`;
       return { id: 'solutions', role: 'ai', text: summary, solutionCards: solutions };
     } catch (e) {
-      console.error('Gemini closing failed', e);
-      setErrorMsg('Failed to communicate with Gemini. Please verify your API key and connection details in the .env file.');
-      return null;
+      console.error('Coach model closing failed', e);
+      setErrorMsg(e instanceof Error ? e.message : 'Live coaching is temporarily unavailable, so we switched to the built-in coach flow.');
+      return buildMockClosing();
     }
   };
 
   const aiGenerateOpenChat = async (history: Message[]): Promise<Message | null> => {
-    if (isMockMode) {
-      return {
-        id: `ai-${Date.now()}`,
-        role: 'ai',
-        text: `That is a very valid concern. When dealing with challenges in **${domainLabels[weakestDomain]}**, cognitive fatigue is highly common. Have you checked out the rotating exercises on your **Today's Reset** dashboard feature to restore some focus?`,
-        options: [
-          "Tell me about Today's Reset",
-          "How can I rebuild my self-control?",
-          "Let's look at another area"
-        ]
-      };
-    }
-
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here') return null;
-    const contents = buildGeminiContents(history);
+    const contents = buildCoachContents(history);
     const systemPrompt = `You are an empathetic cognitive bandwidth coach using the Cognitive Scarcity Index for Youth (CSI-Y) framework.
 Scores: ${scoresContext}
 
 The user has completed the assessment and we are in an open coaching session. Respond to the user's last message with supportive, practical advice based on their profile.
-Keep your response short (2-3 sentences). Offer 2-3 short quick-reply options for them in the JSON response.
+Keep your response short (2-3 sentences). Stay with the issue the user raised. Do not force other stress domains into the answer unless the user explicitly links them.
+The most recent user message overrides prior assumptions and may explicitly reject a previously mentioned stress domain.
+If the user corrects you, acknowledge the correction directly and continue with the corrected context.
 
 Reply ONLY in JSON in this exact shape:
-{"message":"<your response text, may use **bold**>","options":["opt1","opt2","opt3"] or null}`;
+{"message":"<your response text, may use **bold**>","options":null}`;
 
     try {
-      const text = await callGemini(GEMINI_API_KEY, contents, systemPrompt);
-      const json = tryParseJson<{ message: string; options: string[] | null }>(text);
-      if (!json?.message) throw new Error('Invalid JSON response structure');
+      const json = await callCoachModel<{ message: string }>('open_chat', contents, systemPrompt);
       return {
         id: `ai-${Date.now()}`,
         role: 'ai',
         text: json.message,
-        options: Array.isArray(json.options) ? json.options.slice(0, 3) : undefined,
       };
     } catch (e) {
-      console.error("Gemini open chat failed", e);
-      return null;
+      console.error("Coach model open chat failed", e);
+      setErrorMsg(e instanceof Error ? e.message : 'Live coaching is temporarily unavailable, so we switched to the built-in coach flow.');
+      return buildMockOpenChat();
     }
+  };
+
+  const applyInitialMessages = async (
+    initial: Message[],
+    targetLanguage: string,
+    sessionVersion: number
+  ) => {
+    const translatedMessages = [...initial];
+
+    if (targetLanguage === 'hi') {
+      for (const msg of translatedMessages) {
+        msg.translatedText = { hi: await translateText(msg.text, 'hi') };
+        if (msg.options) {
+          msg.translatedOptions = { hi: await translateOptions(msg.options, 'hi') };
+        }
+      }
+    }
+
+    if (sessionVersionRef.current !== sessionVersion) {
+      return;
+    }
+
+    setMessages(translatedMessages);
+    setPhase(0);
+    setTyping(false);
+  };
+
+  const startFreshSession = async (targetLanguage: string) => {
+    const sessionVersion = ++sessionVersionRef.current;
+    setMessages([]);
+    setPhase(0);
+    setUserInput('');
+    setErrorMsg('');
+    setTyping(true);
+
+    const initial = await aiGenerateFirstQuestion();
+    if (!initial) {
+      if (sessionVersionRef.current === sessionVersion) {
+        setTyping(false);
+      }
+      return;
+    }
+
+    await applyInitialMessages(initial, targetLanguage, sessionVersion);
   };
 
   // Load session from local storage or start new, and listen for reset events
@@ -405,36 +417,7 @@ Reply ONLY in JSON in this exact shape:
       setMessages(parsedMsgs);
       setPhase(parseInt(storedPhase, 10));
     } else {
-      const initSession = async () => {
-        setTyping(true);
-        setErrorMsg('');
-        const initial = await aiGenerateFirstQuestion();
-        if (initial) {
-          const introMsg = initial[0];
-          const q1Msg = initial[1];
-
-          const currentLang = storedLanguage || 'en';
-          if (currentLang === 'hi') {
-            const transIntro = await translateText(introMsg.text, 'hi');
-            introMsg.translatedText = { hi: transIntro };
-
-            const transQ1 = await translateText(q1Msg.text, 'hi');
-            q1Msg.translatedText = { hi: transQ1 };
-
-            if (q1Msg.options) {
-              const transOpts = await translateOptions(q1Msg.options, 'hi');
-              q1Msg.translatedOptions = { hi: transOpts };
-            }
-          }
-
-          setMessages([introMsg]);
-          await new Promise(r => setTimeout(r, 600));
-          setMessages([introMsg, q1Msg]);
-          setPhase(1);
-        }
-        setTyping(false);
-      };
-      initSession();
+      startFreshSession(storedLanguage || 'en');
     }
 
     return () => {
@@ -495,91 +478,72 @@ Reply ONLY in JSON in this exact shape:
   }, [language]);
 
   const advance = async (newMessages: Message[]) => {
+    const sessionVersion = sessionVersionRef.current;
+    const userTurns = newMessages.filter((msg) => msg.role === 'user').length;
+    const hasShownPlans = newMessages.some((msg) => Boolean(msg.solutionCards?.length));
     setTyping(true);
     setErrorMsg('');
     let nextMsg: Message | null = null;
-    
-    if (phase === 1) {
-      nextMsg = await aiGenerateFollowUp(newMessages);
-      if (nextMsg) {
-        if (language === 'hi') {
-          const transText = await translateText(nextMsg.text, 'hi');
-          nextMsg.translatedText = { hi: transText };
-          if (nextMsg.options) {
-            const transOpts = await translateOptions(nextMsg.options, 'hi');
-            nextMsg.translatedOptions = { hi: transOpts };
-          }
-        }
-        setMessages(prev => [...prev, nextMsg!]);
-        setPhase(2);
-      }
-    } else if (phase === 2) {
-      nextMsg = await aiGenerateFollowUp(newMessages);
-      if (nextMsg) {
-        if (language === 'hi') {
-          const transText = await translateText(nextMsg.text, 'hi');
-          nextMsg.translatedText = { hi: transText };
-          if (nextMsg.options) {
-            const transOpts = await translateOptions(nextMsg.options, 'hi');
-            nextMsg.translatedOptions = { hi: transOpts };
-          }
-        }
-        setMessages(prev => [...prev, nextMsg!]);
-        setPhase(3);
-      }
-    } else if (phase === 3) {
+
+    if (!hasCompletedFirstCoachSession && !hasShownPlans && userTurns >= 1) {
       nextMsg = await aiGenerateClosing(newMessages);
       if (nextMsg) {
         if (language === 'hi') {
           const transText = await translateText(nextMsg.text, 'hi');
           nextMsg.translatedText = { hi: transText };
         }
+        if (sessionVersionRef.current !== sessionVersion) return;
         setMessages(prev => [...prev, nextMsg!]);
-        setPhase(4);
+        setPhase(userTurns);
+        try {
+          localStorage.setItem(COACH_FIRST_USE_COMPLETED_KEY, 'true');
+          setHasCompletedFirstCoachSession(true);
+        } catch {
+          /* ignore localStorage access issues */
+        }
       }
-    } else if (phase >= 4) {
+    } else if (!hasShownPlans && userTurns >= 2) {
+      nextMsg = await aiGenerateClosing(newMessages);
+      if (nextMsg) {
+        if (language === 'hi') {
+          const transText = await translateText(nextMsg.text, 'hi');
+          nextMsg.translatedText = { hi: transText };
+        }
+        if (sessionVersionRef.current !== sessionVersion) return;
+        setMessages(prev => [...prev, nextMsg!]);
+        setPhase(userTurns);
+      }
+    } else if (hasShownPlans) {
       nextMsg = await aiGenerateOpenChat(newMessages);
       if (nextMsg) {
         if (language === 'hi') {
           const transText = await translateText(nextMsg.text, 'hi');
           nextMsg.translatedText = { hi: transText };
-          if (nextMsg.options) {
-            const transOpts = await translateOptions(nextMsg.options, 'hi');
-            nextMsg.translatedOptions = { hi: transOpts };
-          }
         }
+        if (sessionVersionRef.current !== sessionVersion) return;
         setMessages(prev => [...prev, nextMsg!]);
+        setPhase(userTurns);
+      }
+    } else {
+      nextMsg = await aiGenerateFollowUp(newMessages);
+      if (nextMsg) {
+        if (language === 'hi') {
+          const transText = await translateText(nextMsg.text, 'hi');
+          nextMsg.translatedText = { hi: transText };
+        }
+        if (sessionVersionRef.current !== sessionVersion) return;
+        setMessages(prev => [...prev, nextMsg!]);
+        setPhase(userTurns);
       }
     }
-    setTyping(false);
-  };
 
-  const handleOptionClick = (optText: string, index: number) => {
-    const activeMsg = messages[messages.length - 1];
-    let englishText = optText;
-    let translatedText: Record<string, string> | undefined = undefined;
-
-    if (language === 'hi') {
-      if (activeMsg && activeMsg.options && activeMsg.options[index]) {
-        englishText = activeMsg.options[index];
-      }
-      translatedText = { hi: optText };
+    if (sessionVersionRef.current === sessionVersion) {
+      setTyping(false);
     }
-
-    const userMsg: Message = { 
-      id: `user-${Date.now()}`, 
-      role: 'user', 
-      text: englishText,
-      translatedText
-    };
-    
-    const next = [...messages, userMsg];
-    setMessages(next);
-    advance(next);
   };
 
   const handleTextSubmit = async () => {
-    if (!userInput.trim()) return;
+    if (!userInput.trim() || typing) return;
     setTyping(true);
     const originalText = userInput;
     let englishText = originalText;
@@ -606,56 +570,30 @@ Reply ONLY in JSON in this exact shape:
   const resetSession = async () => {
     localStorage.removeItem('ai_coach_messages');
     localStorage.removeItem('ai_coach_phase');
-    setMessages([]);
-    setPhase(0);
-    setErrorMsg('');
-    setTyping(true);
-    
-    const initial = await aiGenerateFirstQuestion();
-    if (initial) {
-      const introMsg = initial[0];
-      const q1Msg = initial[1];
+    await startFreshSession(language);
+  };
 
-      if (language === 'hi') {
-        const transIntro = await translateText(introMsg.text, 'hi');
-        introMsg.translatedText = { hi: transIntro };
-
-        const transQ1 = await translateText(q1Msg.text, 'hi');
-        q1Msg.translatedText = { hi: transQ1 };
-
-        if (q1Msg.options) {
-          const transOpts = await translateOptions(q1Msg.options, 'hi');
-          q1Msg.translatedOptions = { hi: transOpts };
-        }
-      }
-
-      setMessages([introMsg]);
-      await new Promise(r => setTimeout(r, 600));
-      setMessages([introMsg, q1Msg]);
-      setPhase(1);
+  const pinPlan = (solution: Solution) => {
+    try {
+      localStorage.setItem(CURRENT_PLAN_STORAGE_KEY, solution.id);
+      localStorage.setItem(PINNED_SOLUTIONS_STORAGE_KEY, JSON.stringify([solution.id]));
+      setCurrentPlanId(solution.id);
+    } catch {
+      /* ignore localStorage access issues */
     }
-    setTyping(false);
   };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, typing]);
 
-  const currentMessage = messages[messages.length - 1];
-  const showTextInput = (phase === 2 || phase === 3) && currentMessage?.role === 'ai' && !currentMessage?.options;
+  const showTextInput = messages.length > 0;
 
   const getMessageText = (msg: Message) => {
     if (language === 'hi' && msg.translatedText?.hi) {
       return msg.translatedText.hi;
     }
     return msg.text;
-  };
-
-  const getMessageOptions = (msg: Message) => {
-    if (language === 'hi' && msg.translatedOptions?.hi) {
-      return msg.translatedOptions.hi;
-    }
-    return msg.options;
   };
 
   return (
@@ -670,7 +608,7 @@ Reply ONLY in JSON in this exact shape:
             
             {errorMsg && (
               <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm rounded-md p-4 mb-4">
-                <p className="font-semibold mb-1">Configuration Required</p>
+                <p className="font-semibold mb-1">Live Coaching Issue</p>
                 <p className="text-xs leading-relaxed">{errorMsg}</p>
               </div>
             )}
@@ -736,6 +674,26 @@ Reply ONLY in JSON in this exact shape:
                                   </div>
                                 ))}
                               </div>
+                              <button
+                                onClick={() => pinPlan(sol)}
+                                className={`mt-4 w-full py-2 rounded-md text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+                                  currentPlanId === sol.id
+                                    ? 'bg-success/10 text-success border border-success/20'
+                                    : 'border border-border bg-background text-foreground hover:border-primary/30'
+                                }`}
+                              >
+                                {currentPlanId === sol.id ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5" />
+                                    Plan Pinned to Dashboard
+                                  </>
+                                ) : (
+                                  <>
+                                    <BookmarkPlus className="w-3.5 h-3.5" />
+                                    Pin This Plan
+                                  </>
+                                )}
+                              </button>
                             </div>
                           ))}
 
@@ -758,20 +716,6 @@ Reply ONLY in JSON in this exact shape:
                         </div>
                       )}
 
-                      {/* Options */}
-                      {msg.options && msg.id === currentMessage?.id && (
-                        <div className="mt-2 space-y-1.5">
-                          {getMessageOptions(msg)?.map((opt, i) => (
-                            <button
-                              key={i}
-                              onClick={() => handleOptionClick(opt, i)}
-                              className="w-full text-left px-3 py-2 rounded-md border border-border bg-card text-sm text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all"
-                            >
-                              {opt}
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -815,6 +759,7 @@ Reply ONLY in JSON in this exact shape:
                 placeholder={language === 'hi' ? "अपने विचार साझा करें..." : "Share your thoughts..."}
                 className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:border-primary focus:outline-none transition-colors"
                 autoFocus
+                disabled={typing}
               />
               <button
                 onClick={handleTextSubmit}
@@ -827,8 +772,8 @@ Reply ONLY in JSON in this exact shape:
           </motion.div>
         )}
 
-        {/* Skip to results */}
-        {phase === 4 && !typing && (
+        {/* Plan Ready */}
+        {messages.some((msg) => Boolean(msg.solutionCards?.length)) && !typing && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
